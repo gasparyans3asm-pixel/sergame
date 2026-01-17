@@ -1,802 +1,582 @@
-/*
-Mega Mini-Games Hub — Single-file React app (updated & expanded)
+import React, { useEffect, useMemo, useState, useRef } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
+import {
+  Sun,
+  Moon,
+  Menu,
+  X,
+  UploadCloud,
+  Search,
+  Trash2,
+  Edit3,
+  Plus,
+  Bell,
+  Settings,
+  Heart,
+  ShoppingCart,
+} from "lucide-react";
 
-What's changed in this update:
-- Fixed several bugs (shared object references, improper move detection in 2048, unsafe use of location.reload, event listener cleanup).
-- Improved game implementations (2048 movement detection, solvable Sliding Puzzle shuffle, TicTacToe AI option, better Snake control and restart, Minesweeper grid init fix).
-- Added UI features: Notifications (to replace alerts), Modal, Achievements, Stats panel, SoundManager stub, Pause/Resume where appropriate.
-- Added more comments and small utilities to make code robust and longer as requested.
+// =============================================================
+// Single-file E‑commerce demo (Wildberries-like) — feature rich
+// - Theme (dark/light), language (ru/en)
+// - Search, categories, filters, sorting, pagination
+// - Product grid + product detail modal
+// - Cart drawer with quantity controls, coupon, subtotal
+// - Checkout form (mock) + order history
+// - User auth modal (mock), profile settings
+// - Wishlist, reviews, ratings
+// - Admin panel: product uploader, orders table
+// - Sales charts and quick analytics
+// - LocalStorage persistence for cart, user, orders, wishlist
+// - Toast notifications
+// =============================================================
 
-Drop this file as App.jsx in a React + Tailwind project (or adapt). Tailwind classes are used but you may replace them with your own CSS.
-*/
+// ---------------- Helpers ----------------
+const uid = (p = "id") => `${p}_${Math.random().toString(36).slice(2, 9)}`;
+const currency = (n) => `$${Number(n).toFixed(2)}`;
 
-import React, { useEffect, useRef, useState } from 'react';
+const useLocal = (key, initial) => {
+  const [state, setState] = useState(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : initial;
+    } catch (e) {
+      return initial;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch (e) {}
+  }, [key, state]);
+  return [state, setState];
+};
 
-// ----------------------
-// Utilities & Storage
-// ----------------------
-const uid = () => Math.random().toString(36).slice(2, 9);
-const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
-const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } };
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// ---------------- Mock product catalog ----------------
+const SAMPLE_PRODUCTS = [
+  { id: 1, title: "Women\'s Winter Coat", price: 119.99, category: "Clothing", rating: 4.6, reviews: 124, inStock: 12, colors: ["Black","Red","Blue"], img: "https://picsum.photos/seed/p1/420/320" },
+  { id: 2, title: "Men\'s Sneakers", price: 74.5, category: "Shoes", rating: 4.3, reviews: 98, inStock: 20, colors: ["White","Black"], img: "https://picsum.photos/seed/p2/420/320" },
+  { id: 3, title: "Leather Handbag", price: 89.0, category: "Accessories", rating: 4.8, reviews: 56, inStock: 7, colors: ["Tan","Black"], img: "https://picsum.photos/seed/p3/420/320" },
+  { id: 4, title: "Kids\' Hoodie", price: 29.99, category: "Kids", rating: 4.1, reviews: 44, inStock: 34, colors: ["Green","Blue"], img: "https://picsum.photos/seed/p4/420/320" },
+  { id: 5, title: "Smart Watch", price: 199.0, category: "Electronics", rating: 4.4, reviews: 210, inStock: 5, colors: ["Black","Silver"], img: "https://picsum.photos/seed/p5/420/320" },
+  { id: 6, title: "Running Tights", price: 39.5, category: "Clothing", rating: 4.0, reviews: 12, inStock: 18, colors: ["Grey","Black"], img: "https://picsum.photos/seed/p6/420/320" },
+  { id: 7, title: "Sunglasses", price: 49.99, category: "Accessories", rating: 4.2, reviews: 77, inStock: 25, colors: ["Black","Gold"], img: "https://picsum.photos/seed/p7/420/320" },
+  { id: 8, title: "Wireless Earbuds", price: 59.99, category: "Electronics", rating: 4.5, reviews: 300, inStock: 40, colors: ["White"], img: "https://picsum.photos/seed/p8/420/320" },
+  { id: 9, title: "Denim Jacket", price: 69.99, category: "Clothing", rating: 4.3, reviews: 88, inStock: 10, colors: ["Blue"], img: "https://picsum.photos/seed/p9/420/320" },
+  { id: 10, title: "Trail Backpack", price: 129.0, category: "Outdoors", rating: 4.7, reviews: 140, inStock: 6, colors: ["Olive","Black"], img: "https://picsum.photos/seed/p10/420/320" },
+];
 
-// Tiny notification center (no external libs)
-function useNotifications(){
-  const [items, setItems] = useState([]);
-  useEffect(()=>{
-    if(items.length===0) return;
-    const last = items[items.length-1];
-    const t = setTimeout(()=> setItems(it => it.filter(i=>i.id!==last.id)), 3500);
-    return ()=>clearTimeout(t);
-  }, [items]);
-  const push = (text, type='info') => setItems(it => [...it, { id: uid(), text, type }]);
-  const clear = ()=> setItems([]);
-  return { items, push, clear };
+// ---------------- Toaster ----------------
+function useToasts() {
+  const [toasts, setToasts] = useState([]);
+  const push = (t) => {
+    const id = uid('t');
+    setToasts(s => [...s, { id, ...t }]);
+    setTimeout(() => setToasts(s => s.filter(x => x.id !== id)), 6000);
+  };
+  return { toasts, push };
 }
 
-function Notifications({ notifications }){
+function Toasts({ toasts }) {
   return (
-    <div className="fixed right-4 top-4 w-80 z-50">
-      {notifications.items.map(n=> (
-        <div key={n.id} className="mb-2 p-3 rounded shadow-md bg-white dark:bg-gray-800 border">
-          <div className="font-medium">{n.type}</div>
-          <div className="text-sm opacity-80">{n.text}</div>
+    <div className="fixed right-4 bottom-4 z-50 flex flex-col gap-2">
+      {toasts.map(t => (
+        <div key={t.id} className="p-3 border rounded bg-white dark:bg-gray-800 shadow">
+          <div className="font-semibold">{t.title}</div>
+          <div className="text-sm text-muted-foreground">{t.description}</div>
         </div>
       ))}
     </div>
   );
 }
 
-// ----------------------
-// Sound manager (stub)
-// ----------------------
-const SoundManager = {
-  enabled: true,
-  play: (name) => { if(!SoundManager.enabled) return; /* implement WebAudio or HTMLAudio here */ console.debug('Play sound:', name); },
-  setEnabled: (v)=> { SoundManager.enabled = v; }
+// ---------------- Small UI primitives ----------------
+const Button = ({ children, className = "", icon: Icon, ...rest }) => (
+  <button className={`inline-flex items-center gap-2 px-3 py-2 rounded shadow ${className}`} {...rest}>
+    {Icon ? <Icon size={16} /> : null}
+    {children}
+  </button>
+);
+
+const Input = (props) => <input className="px-3 py-2 border rounded w-full" {...props} />;
+
+const Modal = ({ open, title, onClose, children, footer }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-3xl">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold">{title}</h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100"><X size={18} /></button>
+        </div>
+        <div className="p-4 max-h-[70vh] overflow-auto">{children}</div>
+        {footer && <div className="p-4 border-t">{footer}</div>}
+      </div>
+    </div>
+  );
 };
 
-// ----------------------
-// Main App
-// ----------------------
-export default function App(){
-  const [user, setUser] = useState(() => load('mmg_user', { id: uid(), name: 'Player', theme: 'light', sound: true }));
-  const [section, setSection] = useState('home');
-  const [activeGame, setActiveGame] = useState(null);
-  const [scores, setScores] = useState(() => load('mmg_scores', {}));
-  const [achievements, setAchievements] = useState(() => load('mmg_achievements', {}));
-  const [settings, setSettings] = useState(() => load('mmg_settings', { difficulty: 'normal', gridSize: 4 }));
-  const notifications = useNotifications();
-
-  useEffect(()=> save('mmg_user', user), [user]);
-  useEffect(()=> save('mmg_scores', scores), [scores]);
-  useEffect(()=> save('mmg_achievements', achievements), [achievements]);
-  useEffect(()=> save('mmg_settings', settings), [settings]);
-  useEffect(()=> SoundManager.setEnabled(user.sound), [user.sound]);
-
-  const registerScore = (gameKey, score) => {
-    setScores(prev => {
-      const arr = prev[gameKey] ? [...prev[gameKey]] : [];
-      arr.push({ id: uid(), name: user.name, score, date: new Date().toISOString() });
-      arr.sort((a,b)=>b.score - a.score || new Date(a.date) - new Date(b.date));
-      const trimmed = arr.slice(0,50);
-      notifications.push(`New score in ${gameKey}: ${score}`, 'success');
-      return { ...prev, [gameKey]: trimmed };
-    });
-  };
-
-  const grantAchievement = (id, text) => {
-    setAchievements(prev => {
-      if(prev[id]) return prev;
-      const item = { id, text, date: new Date().toISOString() };
-      notifications.push(`Achievement unlocked: ${text}`, 'achievement');
-      return { ...prev, [id]: item };
-    });
-  };
-
+// ---------------- Product Card ----------------
+function ProductCard({ p, onOpen, onAdd, onToggleWish, wished }) {
   return (
-    <div className={"min-h-screen flex flex-col " + (user.theme === 'dark' ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900')}>
-      <Notifications notifications={notifications} />
-      <Topbar user={user} setUser={setUser} section={section} setSection={setSection} notifications={notifications} />
-      <div className="flex flex-1">
-        <Sidebar setSection={setSection} setActiveGame={g=>{ setActiveGame(g); setSection('play'); }} />
-        <main className="flex-1 p-4 overflow-auto">
-          {section === 'home' && <Home setSection={setSection} setActiveGame={g=>{ setActiveGame(g); setSection('play'); }} />}
-          {section === 'games' && <GamesHub onOpen={(g)=>{ setActiveGame(g); setSection('play'); }} settings={settings} />}
-          {section === 'play' && activeGame && <GameShell gameKey={activeGame} registerScore={registerScore} grantAchievement={grantAchievement} settings={settings} notifications={notifications} />}
-          {section === 'leaderboard' && <Leaderboards scores={scores} />}
-          {section === 'profile' && <Profile user={user} setUser={setUser} achievements={achievements} scores={scores} />}
-          {section === 'settings' && <Settings settings={settings} setSettings={setSettings} user={user} setUser={setUser} />}
-          {section === 'about' && <About />}
-        </main>
+    <div className="border rounded p-3 flex flex-col">
+      <div className="h-40 mb-2 overflow-hidden rounded">
+        <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
       </div>
-    </div>
-  );
-}
-
-// ----------------------
-// Topbar / Sidebar
-// ----------------------
-function Topbar({ user, setUser, section, setSection, notifications }){
-  return (
-    <header className="flex items-center justify-between p-3 border-b shadow-sm">
-      <div className="flex items-center gap-3">
-        <h1 className="text-xl font-bold">Mega Mini-Games Hub</h1>
-        <span className="text-sm opacity-70">play many tiny games & collect achievements</span>
-      </div>
-      <div className="flex items-center gap-3">
-        <nav className="hidden sm:flex gap-2">
-          <button className="btn" onClick={()=>setSection('home')}>Home</button>
-          <button className="btn" onClick={()=>setSection('games')}>Games</button>
-          <button className="btn" onClick={()=>setSection('leaderboard')}>Leaderboards</button>
-          <button className="btn" onClick={()=>setSection('profile')}>Profile</button>
-        </nav>
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{user.name}</span>
-          <button className="btn small" onClick={()=>{
-            const newName = prompt('Enter new name', user.name);
-            if(newName) setUser({...user, name: newName});
-          }}>Rename</button>
-          <button className="btn outline" onClick={()=>{ navigator.clipboard?.writeText(window.location.href); notifications.push('Link copied to clipboard'); }}>Share</button>
+      <div className="flex-1">
+        <h4 className="font-medium truncate">{p.title}</h4>
+        <div className="text-sm text-muted-foreground">{p.category}</div>
+        <div className="mt-2 flex items-center justify-between">
+          <div className="font-bold">{currency(p.price)}</div>
+          <div className="text-sm">⭐ {p.rating} ({p.reviews})</div>
         </div>
-      </div>
-    </header>
-  );
-}
-
-function Sidebar({ setSection, setActiveGame }){
-  const gamesList = ['Memory','TicTacToe','2048','Snake','Minesweeper','Simon','Trivia','WhackAMole','SlidingPuzzle','Pong'];
-  return (
-    <aside className="w-64 border-r p-4 hidden md:block">
-      <div className="mb-4">
-        <h3 className="font-semibold">Quick Play</h3>
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          {gamesList.map(g => (
-            <button key={g} className="btn small" onClick={()=>{ setActiveGame(g); }}>{g}</button>
-          ))}
-        </div>
-      </div>
-      <div className="mt-6">
-        <h4 className="font-semibold">Sections</h4>
-        <ul className="mt-2 space-y-2">
-          <li><button className="link" onClick={()=>setSection('games')}>All Games</button></li>
-          <li><button className="link" onClick={()=>setSection('leaderboard')}>Leaderboards</button></li>
-          <li><button className="link" onClick={()=>setSection('profile')}>Profile</button></li>
-          <li><button className="link" onClick={()=>setSection('settings')}>Settings</button></li>
-          <li><button className="link" onClick={()=>setSection('about')}>About</button></li>
-        </ul>
-      </div>
-    </aside>
-  );
-}
-
-// ----------------------
-// Home & Games Hub
-// ----------------------
-function Home({ setSection, setActiveGame }){
-  return (
-    <div>
-      <div className="grid md:grid-cols-3 gap-4">
-        <div className="card p-4">
-          <h2 className="text-lg font-bold">Start Playing</h2>
-          <p className="mt-2">Choose a game or hit Quick Play to jump into a random tiny game.</p>
-          <div className="mt-3 flex gap-2">
-            <button className="btn" onClick={()=>{ const list=['Memory','TicTacToe','2048','Snake','Minesweeper','Simon','Trivia','WhackAMole','SlidingPuzzle','Pong']; const g = list[Math.floor(Math.random()*list.length)]; setActiveGame(g); setSection('play'); }}>Quick Play</button>
-            <button className="btn outline" onClick={()=>setSection('games')}>All Games</button>
-          </div>
-        </div>
-        <div className="card p-4">
-          <h3 className="font-semibold">Daily Challenge</h3>
-          <p className="mt-2">Complete today's challenge to get a special achievement.</p>
-          <button className="btn mt-3" onClick={()=>alert('Daily challenge: Beat 20 in Snake or score 200 in 2048')}>View Challenge</button>
-        </div>
-        <div className="card p-4">
-          <h3 className="font-semibold">Leaderboard Highlights</h3>
-          <p className="mt-2">See top scores across games.</p>
-          <button className="btn mt-3" onClick={()=>setSection('leaderboard')}>View Leaderboards</button>
-        </div>
-      </div>
-
-      <div className="mt-6 card p-4">
-        <h3 className="font-semibold">Featured — Trivia Tournament</h3>
-        <p className="mt-2">Join a quick trivia run and try to beat the AI timer.</p>
-        <button className="btn mt-3" onClick={()=>{ setActiveGame('Trivia'); setSection('play'); }}>Play Trivia</button>
-      </div>
-    </div>
-  );
-}
-
-function GamesHub({ onOpen }){
-  const games = [
-    { key:'Memory', desc:'Flip matching cards' },
-    { key:'TicTacToe', desc:'Classic X vs O with AI option' },
-    { key:'2048', desc:'Slide & merge tiles' },
-    { key:'Snake', desc:'Collect food, grow' },
-    { key:'Minesweeper', desc:'Clear without mines' },
-    { key:'Simon', desc:'Repeat the color sequence' },
-    { key:'Trivia', desc:'Answer quick questions' },
-    { key:'WhackAMole', desc:'Tap moles fast' },
-    { key:'SlidingPuzzle', desc:'Arrange tiles' },
-    { key:'Pong', desc:'Classic table tennis' },
-  ];
-  return (
-    <div>
-      <h2 className="text-2xl font-bold">All Games</h2>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-        {games.map(g => (
-          <div key={g.key} className="card p-4">
-            <h4 className="font-semibold">{g.key}</h4>
-            <p className="text-sm mt-1">{g.desc}</p>
-            <div className="mt-3 flex gap-2">
-              <button className="btn" onClick={()=>onOpen(g.key)}>Play</button>
-              <button className="btn outline" onClick={()=>alert('Tutorial: try to beat your high score!')}>Tutorial</button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ----------------------
-// Game Shell
-// ----------------------
-function GameShell({ gameKey, registerScore, grantAchievement, settings, notifications }){
-  const commonProps = { registerScore, grantAchievement, settings, notifications };
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">{gameKey}</h2>
-      </div>
-      <div className="card p-4">
-        {gameKey === 'Memory' && <MemoryGame {...commonProps} />}
-        {gameKey === 'TicTacToe' && <TicTacToe {...commonProps} />}
-        {gameKey === '2048' && <Game2048 {...commonProps} />}
-        {gameKey === 'Snake' && <SnakeGame {...commonProps} />}
-        {gameKey === 'Minesweeper' && <Minesweeper {...commonProps} />}
-        {gameKey === 'Simon' && <SimonGame {...commonProps} />}
-        {gameKey === 'Trivia' && <TriviaGame {...commonProps} />}
-        {gameKey === 'WhackAMole' && <WhackAMole {...commonProps} />}
-        {gameKey === 'SlidingPuzzle' && <SlidingPuzzle {...commonProps} />}
-        {gameKey === 'Pong' && <PongGame {...commonProps} />}
-      </div>
-    </div>
-  );
-}
-
-// ----------------------
-// 1) Memory
-// ----------------------
-function MemoryGame({ registerScore, grantAchievement }){
-  const size = 4; // 4x4
-  const total = size*size;
-  const createDeck = ()=>{
-    const pairs = total/2;
-    const items = [];
-    for(let i=0;i<pairs;i++) items.push({ id:i, label: String.fromCharCode(65+i) });
-    const full = [...items, ...items].map((c, idx)=>({ ...c, uid: uid() }));
-    for(let i=full.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [full[i],full[j]]=[full[j],full[i]]; }
-    return full.map(c=>({ ...c, flipped:false, matched:false }));
-  };
-
-  const [deck, setDeck] = useState(createDeck);
-  const [firstIndex, setFirstIndex] = useState(null);
-  const [moves, setMoves] = useState(0);
-  const [matchedCount, setMatchedCount] = useState(0);
-
-  const flip = (i)=>{
-    setDeck(prev=>{
-      const d = prev.map(x=>({ ...x }));
-      if(d[i].flipped || d[i].matched) return prev;
-      d[i].flipped = true;
-      if(firstIndex===null){ setFirstIndex(i); return d; }
-      else {
-        setMoves(m=>m+1);
-        const a = d[firstIndex]; const b = d[i];
-        if(a.id === b.id){ d[firstIndex].matched = true; d[i].matched = true; setMatchedCount(c=>c+2); setFirstIndex(null); return d; }
-        else {
-          // keep flipped briefly then flip back
-          setTimeout(()=> setDeck(prev2 => prev2.map((x, idx)=> idx===firstIndex||idx===i ? { ...x, flipped:false } : x)), 700);
-          setFirstIndex(null);
-          return d;
-        }
-      }
-    });
-  };
-
-  useEffect(()=>{
-    if(matchedCount === total && total>0){ const score = Math.max(1000 - moves*10, 10); registerScore('Memory', score); grantAchievement('memory_master', 'Completed Memory game'); }
-  }, [matchedCount]);
-
-  const reset = ()=>{ setDeck(createDeck()); setFirstIndex(null); setMoves(0); setMatchedCount(0); };
-
-  return (
-    <div>
-      <div className="grid grid-cols-4 gap-2 max-w-md">
-        {deck.map((c, i)=> (
-          <button key={c.uid} className={`p-3 aspect-square rounded border flex items-center justify-center cursor-pointer ${c.flipped||c.matched ? 'bg-white' : 'bg-gray-300'}`} onClick={()=>flip(i)}>
-            <div className="text-2xl font-bold">{(c.flipped||c.matched) ? c.label : ''}</div>
-          </button>
-        ))}
-      </div>
-      <div className="mt-3 flex items-center gap-3">
-        <div>Moves: {moves}</div>
-        <button className="btn" onClick={reset}>Reset</button>
-      </div>
-    </div>
-  );
-}
-
-// ----------------------
-// 2) TicTacToe with simple AI
-// ----------------------
-function TicTacToe({ registerScore, grantAchievement }){
-  const [board, setBoard] = useState(Array(9).fill(null));
-  const [xTurn, setXTurn] = useState(true);
-  const [aiOn, setAiOn] = useState(true);
-  const winner = calcWinner(board);
-
-  useEffect(()=>{ if(winner){ registerScore('TicTacToe', 100); grantAchievement('ttt_winner', 'Won a TicTacToe game'); } }, [winner]);
-
-  useEffect(()=>{
-    if(!xTurn && aiOn && !winner){ // simple AI for O
-      const idx = chooseBestMove(board, 'O');
-      if(idx!==null) setTimeout(()=> play(idx), 350);
-    }
-  }, [xTurn, aiOn, winner]);
-
-  const play = (i)=>{
-    setBoard(prev=>{ if(prev[i] || winner) return prev; const b = prev.slice(); b[i] = xTurn ? 'X' : 'O'; setXTurn(!xTurn); return b; });
-  };
-
-  const reset = ()=>{ setBoard(Array(9).fill(null)); setXTurn(true); };
-
-  return (
-    <div>
-      <div className="grid grid-cols-3 gap-2 max-w-xs">
-        {board.map((v,i)=> (
-          <button key={i} className="p-6 border text-2xl" onClick={()=>play(i)}>{v}</button>
-        ))}
-      </div>
-      <div className="mt-3">{winner ? `Winner: ${winner}` : `Turn: ${xTurn ? 'X' : 'O'}`}</div>
-      <div className="mt-2 flex gap-2">
-        <button className="btn" onClick={reset}>Reset</button>
-        <label className="ml-2">AI (O): <input type="checkbox" checked={aiOn} onChange={(e)=>setAiOn(e.target.checked)} /></label>
-      </div>
-    </div>
-  );
-}
-
-function calcWinner(b){
-  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-  for(const [a,c,d] of lines){ if(b[a] && b[a] === b[c] && b[a] === b[d]) return b[a]; }
-  return null;
-}
-
-function chooseBestMove(board, player){
-  // Very simple heuristic: take winning move, block opponent winning move, else random
-  const opponent = player === 'X' ? 'O' : 'X';
-  for(let i=0;i<9;i++){
-    if(!board[i]){ const b = board.slice(); b[i]=player; if(calcWinner(b)===player) return i; }
-  }
-  for(let i=0;i<9;i++){
-    if(!board[i]){ const b = board.slice(); b[i]=opponent; if(calcWinner(b)===opponent) return i; }
-  }
-  const empties = board.map((v,i)=> v? null : i).filter(Boolean);
-  if(empties.length===0) return null;
-  return empties[Math.floor(Math.random()*empties.length)];
-}
-
-// ----------------------
-// 3) 2048 with robust move detection
-// ----------------------
-function Game2048({ registerScore, grantAchievement }){
-  const size = 4;
-  const emptyGrid = ()=> Array(size).fill(0).map(()=>Array(size).fill(0));
-  const [grid, setGrid] = useState(()=>{ const g = emptyGrid(); addTile(g); addTile(g); return g; });
-
-  function addTile(g){
-    const empties = [];
-    for(let r=0;r<size;r++) for(let c=0;c<size;c++) if(g[r][c]===0) empties.push([r,c]);
-    if(empties.length===0) return false;
-    const [r,c] = empties[Math.floor(Math.random()*empties.length)]; g[r][c] = Math.random()<0.9?2:4; return true;
-  }
-  function clone(g){ return g.map(row=>row.slice()); }
-  function rotate(g){ const n = clone(g); for(let r=0;r<size;r++) for(let c=0;c<size;c++) n[c][size-1-r]=g[r][c]; return n; }
-  function moveLeft(g){ let score=0; let moved=false; for(let r=0;r<size;r++){ let row = g[r].filter(x=>x!==0); for(let i=0;i<row.length-1;i++){ if(row[i]===row[i+1]){ row[i]*=2; score+=row[i]; row.splice(i+1,1); } } while(row.length<size) row.push(0); if(row.some((v,i)=>v!==g[r][i])) moved=true; g[r]=row; } return {grid:g,score,moved}; }
-
-  const doMove = (dir)=>{
-    let g = clone(grid); let rotated=0;
-    if(dir==='up'){ g = rotate(g); rotated=1; }
-    if(dir==='right'){ g = rotate(rotate(g)); rotated=2; }
-    if(dir==='down'){ g = rotate(rotate(rotate(g))); rotated=3; }
-    const {grid:after, score, moved} = moveLeft(g);
-    let g2 = after;
-    for(let i=0;i<(4-rotated)%4;i++) g2 = rotate(g2);
-    if(moved){ addTile(g2); setGrid(g2); if(score>0){ registerScore('2048', score); grantAchievement('2048_merge', 'Merged tiles in 2048'); } }
-  };
-
-  const isOver = ()=>{
-    for(let r=0;r<size;r++) for(let c=0;c<size;c++) if(grid[r][c]===0) return false;
-    for(let r=0;r<size;r++) for(let c=0;c<size;c++){ if(r+1<size && grid[r][c]===grid[r+1][c]) return false; if(c+1<size && grid[r][c]===grid[r][c+1]) return false; }
-    return true;
-  };
-
-  useEffect(()=>{
-    const onKey = (e)=>{
-      if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){ e.preventDefault(); if(e.key==='ArrowLeft') doMove('left'); if(e.key==='ArrowRight') doMove('right'); if(e.key==='ArrowUp') doMove('up'); if(e.key==='ArrowDown') doMove('down'); }
-    };
-    window.addEventListener('keydown', onKey);
-    return ()=> window.removeEventListener('keydown', onKey);
-  }, [grid]);
-
-  const reset = ()=> setGrid(()=>{ const g = emptyGrid(); addTile(g); addTile(g); return g; });
-
-  return (
-    <div>
-      <div className="grid gap-2" style={{gridTemplateColumns:`repeat(${size}, 1fr)`, maxWidth: 340}}>
-        {grid.flat().map((v,i)=> <div key={i} className="p-3 aspect-square border flex items-center justify-center text-lg font-bold">{v||''}</div>)}
       </div>
       <div className="mt-3 flex gap-2">
-        <button className="btn" onClick={()=>doMove('left')}>Left</button>
-        <button className="btn" onClick={()=>doMove('up')}>Up</button>
-        <button className="btn" onClick={()=>doMove('down')}>Down</button>
-        <button className="btn" onClick={()=>doMove('right')}>Right</button>
-        <button className="btn outline" onClick={reset}>Reset</button>
+        <Button onClick={() => onOpen(p)} className="flex-1">View</Button>
+        <Button onClick={() => onAdd(p)} className="flex-1" icon={ShoppingCart}>Add</Button>
+        <button onClick={() => onToggleWish(p)} className={`p-2 rounded ${wished ? 'bg-red-100' : ''}`}><Heart /></button>
       </div>
-      {isOver() && <div className="mt-2 font-semibold">Game Over</div>}
     </div>
   );
 }
 
-// ----------------------
-// 4) Snake (improved)
-// ----------------------
-function SnakeGame({ registerScore, grantAchievement }){
-  const canvasRef = useRef();
-  const [running, setRunning] = useState(true);
-  const [score, setScore] = useState(0);
-  const gameRef = useRef({});
-
-  useEffect(()=>{
-    const canvas = canvasRef.current; const ctx = canvas.getContext('2d');
-    const scale = 20; const cols = 20; const rows = 20; const W = cols*scale; const H = rows*scale;
-    canvas.width = W; canvas.height = H;
-    let snake = [{x:10,y:10}]; let dir = {x:1,y:0}; let food = {x:5,y:5}; let id=null; let localScore=0; let speed = 120;
-
-    const placeFood = ()=>{ food = { x: Math.floor(Math.random()*cols), y: Math.floor(Math.random()*rows) }; if(snake.some(s=>s.x===food.x && s.y===food.y)) placeFood(); };
-    const draw = ()=>{
-      ctx.fillStyle='black'; ctx.fillRect(0,0,W,H);
-      ctx.fillStyle='lime'; snake.forEach(s=>ctx.fillRect(s.x*scale+1,s.y*scale+1,scale-2,scale-2));
-      ctx.fillStyle='red'; ctx.fillRect(food.x*scale+1,food.y*scale+1,scale-2,scale-2);
-      ctx.fillStyle='white'; ctx.fillText('Score: '+localScore, 8, 12);
-    };
-
-    const step = ()=>{
-      if(!running) return;
-      const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
-      if(head.x<0||head.y<0||head.x>=cols||head.y>=rows || snake.some(s=>s.x===head.x && s.y===head.y)){ setRunning(false); registerScore('Snake', localScore); grantAchievement('snake_game', 'Played Snake'); return; }
-      snake.unshift(head);
-      if(head.x===food.x && head.y===food.y){ localScore+=10; setScore(localScore); placeFood(); }
-      else snake.pop();
-      draw();
-      id = setTimeout(step, speed);
-    };
-
-    const onKey = (e)=>{
-      if(e.key==='ArrowUp' && dir.y!==1) dir={x:0,y:-1};
-      if(e.key==='ArrowDown' && dir.y!==-1) dir={x:0,y:1};
-      if(e.key==='ArrowLeft' && dir.x!==1) dir={x:-1,y:0};
-      if(e.key==='ArrowRight' && dir.x!==-1) dir={x:1,y:0};
-      if(e.key==='p'){ setRunning(r=>!r); }
-    };
-
-    placeFood(); draw(); step();
-    window.addEventListener('keydown', onKey);
-    gameRef.current = { stop: ()=>{ clearTimeout(id); window.removeEventListener('keydown', onKey); } };
-    return ()=>{ gameRef.current.stop(); };
-  }, [running]);
-
+// ---------------- Product Modal ----------------
+function ProductModal({ open, product, onClose, onAdd, onToggleWish, wished }) {
+  const [qty, setQty] = useState(1);
+  useEffect(() => setQty(1), [product]);
+  if (!open || !product) return null;
   return (
-    <div>
-      <canvas ref={canvasRef} className="border" />
-      <div className="mt-2 flex gap-2"><button className="btn" onClick={()=>{ setRunning(true); location.reload(); /* fallback quick restart */ }}>Restart (quick)</button></div>
+    <Modal open={open} onClose={onClose} title={product.title}>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="col-span-1">
+          <img src={product.img} alt={product.title} className="w-full h-72 object-cover rounded" />
+        </div>
+        <div className="col-span-2 space-y-3">
+          <div className="text-lg font-bold">{currency(product.price)}</div>
+          <div className="text-sm">Category: {product.category}</div>
+          <div className="text-sm">Rating: {product.rating} — Reviews: {product.reviews}</div>
+          <div className="text-sm">In stock: {product.inStock}</div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm">Qty</label>
+            <input type="number" min={1} max={product.inStock} value={qty} onChange={(e) => setQty(Number(e.target.value) || 1)} className="w-20 px-2 py-1 border rounded" />
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => { onAdd(product, qty); onClose(); }} className="bg-blue-600 text-white">Add to cart</Button>
+            <Button onClick={() => onToggleWish(product)} icon={Heart}>{wished ? 'Remove' : 'Wishlist'}</Button>
+          </div>
+          <div className="pt-2 border-t text-sm">Detailed description: This is a beautiful product that fits many use cases. Image and data are mocked for demo purposes.</div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------- Cart Drawer ----------------
+function CartDrawer({ open, items, onClose, onChangeQty, onRemove, onCheckout, coupon, applyCoupon, onClear }) {
+  const subtotal = items.reduce((s, it) => s + it.product.price * it.qty, 0);
+  const discount = coupon === 'SALE10' ? subtotal * 0.1 : 0;
+  const total = subtotal - discount;
+  return (
+    <div className={`fixed top-0 right-0 h-full z-50 transition-transform shadow-lg ${open ? 'translate-x-0' : 'translate-x-full'}`} style={{ width: '420px' }}>
+      <div className="h-full bg-white dark:bg-gray-900 p-4 flex flex-col">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Cart</h3>
+          <button onClick={onClose}><X /></button>
+        </div>
+        <div className="flex-1 overflow-auto mt-3 space-y-3">
+          {items.length === 0 ? <div className="text-sm text-muted-foreground">Cart is empty</div> : items.map(it => (
+            <div key={it.product.id} className="flex items-center gap-3 border rounded p-2">
+              <img src={it.product.img} alt={it.product.title} className="w-16 h-12 object-cover rounded" />
+              <div className="flex-1">
+                <div className="font-medium truncate">{it.product.title}</div>
+                <div className="text-sm">{currency(it.product.price)}</div>
+                <div className="flex items-center gap-2 mt-1">
+                  <input type="number" min={1} max={it.product.inStock} value={it.qty} onChange={(e) => onChangeQty(it.product.id, Number(e.target.value) || 1)} className="w-20 px-2 py-1 border rounded" />
+                  <button onClick={() => onRemove(it.product.id)} className="text-sm text-red-600">Remove</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 border-t pt-3">
+          <div className="flex items-center gap-2">
+            <Input placeholder="Coupon code" value={coupon || ''} onChange={(e) => applyCoupon(e.target.value)} />
+            <Button onClick={() => applyCoupon(coupon)}>Apply</Button>
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">Subtotal</div>
+            <div className="font-semibold">{currency(subtotal)}</div>
+          </div>
+          {discount > 0 && (
+            <div className="flex items-center justify-between text-sm text-green-600">Discount {currency(discount)}</div>
+          )}
+          <div className="mt-2 flex items-center justify-between">
+            <div className="font-bold">Total</div>
+            <div className="font-bold">{currency(total)}</div>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button onClick={() => onCheckout(total)} className="flex-1 bg-green-600 text-white">Checkout</Button>
+            <Button onClick={onClear} className="flex-1 bg-red-50">Clear</Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ----------------------
-// 5) Minesweeper (fixed grid init)
-// ----------------------
-function Minesweeper({ registerScore, grantAchievement }){
-  const rows = 8, cols = 8, mines = 10;
-  const createMap = ()=>{
-    const map = Array(rows).fill(null).map(()=>Array(cols).fill(null));
-    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) map[r][c] = { mine:false, revealed:false, flag:false, count:0 };
-    const cells = [];
-    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) cells.push([r,c]);
-    cells.sort(()=>Math.random()-0.5);
-    const mineCoords = cells.slice(0,mines);
-    mineCoords.forEach(([r,c])=> map[r][c].mine = true);
-    const dirs=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
-    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
-      if(map[r][c].mine) continue;
-      let cnt=0; dirs.forEach(([dr,dc])=>{ const nr=r+dr,nc=c+dc; if(nr>=0 && nr<rows && nc>=0 && nc<cols && map[nr][nc].mine) cnt++; });
-      map[r][c].count = cnt;
-    }
-    return map;
+// ---------------- Admin Product Uploader ----------------
+function AdminUploader({ onAdd }) {
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState(0);
+  const [category, setCategory] = useState("");
+  const [img, setImg] = useState("");
+  const submit = (e) => {
+    e.preventDefault();
+    if (!title || !price) return;
+    onAdd({ id: Date.now(), title, price: Number(price), category, rating: 0, reviews: 0, inStock: 10, colors: [], img: img || 'https://picsum.photos/420/320' });
+    setTitle(''); setPrice(0); setCategory(''); setImg('');
   };
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <Input placeholder="Price" type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
+      <Input placeholder="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
+      <Input placeholder="Image URL" value={img} onChange={(e) => setImg(e.target.value)} />
+      <div className="flex justify-end"><Button type="submit">Add product</Button></div>
+    </form>
+  );
+}
 
-  const [grid, setGrid] = useState(createMap);
-  const reveal = (r,c)=>{
-    setGrid(prev=>{
-      const g = prev.map(row=>row.map(cell=>({ ...cell })));
-      if(g[r][c].revealed || g[r][c].flag) return prev;
-      g[r][c].revealed = true;
-      if(g[r][c].mine){ // reveal all
-        for(let i=0;i<rows;i++) for(let j=0;j<cols;j++) if(g[i][j].mine) g[i][j].revealed = true;
-        registerScore('Minesweeper', 0); grantAchievement('mines_fail','Hit a mine');
-      } else if(g[r][c].count===0){ const dirs=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]; dirs.forEach(([dr,dc])=>{ const nr=r+dr,nc=c+dc; if(nr>=0&&nr<rows&&nc>=0&&nc<cols && !g[nr][nc].revealed) { g[nr][nc].revealed = true; if(g[nr][nc].count===0) reveal(nr,nc); } }); }
-      return g;
+// ---------------- Main App ----------------
+export default function App() {
+  const [theme, setTheme] = useLocal('theme_v2', 'light');
+  const [lang, setLang] = useLocal('lang_v2', 'ru');
+  const [products, setProducts] = useLocal('catalog_v1', SAMPLE_PRODUCTS);
+  const [cart, setCart] = useLocal('cart_v1', []);
+  const [wishlist, setWishlist] = useLocal('wish_v1', []);
+  const [orders, setOrders] = useLocal('orders_v1', []);
+  const [user, setUser] = useLocal('user_v1', null);
+
+  const { toasts, push } = useToasts();
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  // UI state
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('All');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sort, setSort] = useState('relevance');
+  const [page, setPage] = useState(1);
+  const perPage = 6;
+
+  // panels/modals
+  const [productOpen, setProductOpen] = useState(false);
+  const [activeProduct, setActiveProduct] = useState(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+
+  // derived
+  const categories = useMemo(() => ['All', ...Array.from(new Set(products.map(p => p.category)))], [products]);
+
+  const filtered = useMemo(() => {
+    let arr = [...products];
+    if (query) arr = arr.filter(p => p.title.toLowerCase().includes(query.toLowerCase()));
+    if (category !== 'All') arr = arr.filter(p => p.category === category);
+    if (minPrice) arr = arr.filter(p => p.price >= Number(minPrice));
+    if (maxPrice) arr = arr.filter(p => p.price <= Number(maxPrice));
+    if (sort === 'price_asc') arr.sort((a,b) => a.price - b.price);
+    if (sort === 'price_desc') arr.sort((a,b) => b.price - a.price);
+    if (sort === 'rating') arr.sort((a,b) => b.rating - a.rating);
+    return arr;
+  }, [products, query, category, minPrice, maxPrice, sort]);
+
+  const pages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const pageItems = filtered.slice((page-1)*perPage, page*perPage);
+
+  // cart ops
+  const addToCart = (product, qty = 1) => {
+    setCart(prev => {
+      const found = prev.find(i => i.product.id === product.id);
+      if (found) return prev.map(i => i.product.id === product.id ? { ...i, qty: i.qty + qty } : i);
+      return [{ product, qty }, ...prev];
+    });
+    push({ title: 'Added to cart', description: `${product.title} x${qty}` });
+  };
+  const changeQty = (id, qty) => setCart(prev => prev.map(i => i.product.id === id ? { ...i, qty } : i));
+  const removeFromCart = (id) => setCart(prev => prev.filter(i => i.product.id !== id));
+  const clearCart = () => setCart([]);
+
+  // wishlist
+  const toggleWish = (p) => {
+    setWishlist(prev => {
+      if (prev.find(x => x.id === p.id)) {
+        push({ title: 'Removed from wishlist', description: p.title });
+        return prev.filter(x => x.id !== p.id);
+      }
+      push({ title: 'Added to wishlist', description: p.title });
+      return [p, ...prev];
     });
   };
-  const toggleFlag = (e,r,c)=>{ e.preventDefault(); setGrid(prev => { const g = prev.map(row=>row.map(cell=>({ ...cell }))); g[r][c].flag = !g[r][c].flag; return g; }); };
-  const reset = ()=> setGrid(createMap());
-  return (
-    <div>
-      <div className="grid gap-1" style={{gridTemplateColumns:`repeat(${cols}, 1fr)`, maxWidth:360}}>
-        {grid.flat().map((cell,i)=>{
-          const r = Math.floor(i/cols), c = i%cols;
-          return (
-            <button key={i} onClick={()=>reveal(r,c)} onContextMenu={(e)=>toggleFlag(e,r,c)} className={`p-2 aspect-square border flex items-center justify-center cursor-pointer ${cell.revealed ? 'bg-white' : 'bg-gray-300'}`}>
-              {cell.revealed ? (cell.mine ? '💣' : (cell.count||'')) : (cell.flag ? '🚩' : '')}
-            </button>
-          );
-        })}
-      </div>
-      <div className="mt-3 flex gap-2"><button className="btn" onClick={reset}>Reset</button></div>
-    </div>
-  );
-}
 
-// ----------------------
-// 6) Simon Says
-// ----------------------
-function SimonGame({ registerScore, grantAchievement }){
-  const colors = ['red','green','blue','yellow'];
-  const [seq,setSeq] = useState([]);
-  const [index,setIndex] = useState(0);
-  const [playing,setPlaying]=useState(false);
-  const [message,setMessage]=useState('Start to play');
-
-  const addStep = ()=> setSeq(s=>[...s, colors[Math.floor(Math.random()*colors.length)]]);
-  const playSeq = async ()=>{
-    setPlaying(true); for(const c of seq){ setMessage('Watch'); await new Promise(r=>setTimeout(r,400)); setMessage(c); await new Promise(r=>setTimeout(r,400)); setMessage(''); }
-    setMessage('Your turn'); setPlaying(false);
-  };
-  useEffect(()=>{ if(seq.length>0) playSeq(); }, [seq]);
-  const start = ()=>{ setSeq([]); setIndex(0); addStep(); };
-  const choose = (c)=>{
-    if(playing) return;
-    if(c === seq[index]){ setIndex(i=>i+1); if(index+1 === seq.length){ registerScore('Simon', seq.length*10); addStep(); setIndex(0); setMessage('Nice!'); } }
-    else { setMessage('Wrong! Game Over'); registerScore('Simon', seq.length*5); setSeq([]); setIndex(0); }
-  };
-  return (
-    <div>
-      <div className="grid grid-cols-2 gap-2 max-w-xs">
-        {colors.map(c=> <button key={c} className={`p-6 border rounded ${c==='red'? 'bg-red-400': c==='green'? 'bg-green-400': c==='blue'? 'bg-blue-400': 'bg-yellow-300'}`} onClick={()=>choose(c)}>{c}</button>)}
-      </div>
-      <div className="mt-3">Seq length: {seq.length} — {message}</div>
-      <div className="mt-2"><button className="btn" onClick={start}>Start</button></div>
-    </div>
-  );
-}
-
-// ----------------------
-// 7) Trivia
-// ----------------------
-function TriviaGame({ registerScore, grantAchievement, notifications }){
-  const questions = [
-    {q:'Capital of France?', a:['Paris','Rome','Berlin','Madrid'], correct:0},
-    {q:'2+2*2=?', a:['4','6','8','2'], correct:1},
-    {q:'Which is prime?', a:['9','15','17','21'], correct:2},
-  ];
-  const [i, setI] = useState(0); const [score,setScore] = useState(0);
-  const answer = (idx)=>{ if(idx===questions[i].correct) setScore(s=>s+10); if(i+1<questions.length) setI(i+1); else { const final = score+ (idx===questions[i].correct?10:0); registerScore('Trivia', final); grantAchievement('trivia_finisher','Finished a trivia run'); notifications.push('Trivia finished: '+final); } };
-  return (
-    <div>
-      <h3 className="font-semibold">{questions[i].q}</h3>
-      <div className="mt-2 grid gap-2">
-        {questions[i].a.map((ans, idx)=> <button key={idx} className="btn" onClick={()=>answer(idx)}>{ans}</button>)}
-      </div>
-      <div className="mt-3">Score: {score}</div>
-    </div>
-  );
-}
-
-// ----------------------
-// 8) Whack-a-mole
-// ----------------------
-function WhackAMole({ registerScore, grantAchievement }){
-  const [holes, setHoles] = useState(Array(6).fill(false));
-  const [score, setScore] = useState(0);
-  useEffect(()=>{ let running=true; const tick=()=>{ if(!running) return; const idx=Math.floor(Math.random()*holes.length); setHoles(h=>h.map((_,i)=>i===idx)); setTimeout(tick, 700); }; tick(); return ()=>{ running=false }; },[]);
-  const hit = (i)=>{ if(holes[i]){ setScore(s=>s+10); setHoles(h=>h.map(()=>false)); registerScore('WhackAMole', score+10); grantAchievement('whack_pro','Hit a mole'); } };
-  return (
-    <div>
-      <div className="grid grid-cols-3 gap-2 max-w-sm">
-        {holes.map((h,i)=> <button key={i} className="p-4 border aspect-square flex items-center justify-center cursor-pointer" onClick={()=>hit(i)}>{h? '🐹':' '}</button>)}
-      </div>
-      <div className="mt-3">Score: {score}</div>
-    </div>
-  );
-}
-
-// ----------------------
-// 9) Sliding Puzzle with solvable shuffle
-// ----------------------
-function SlidingPuzzle({ registerScore, grantAchievement }){
-  const size = 3;
-  const solved = (arr)=> arr.slice(0,arr.length-1).every((v,i)=> v===i+1);
-  const create = ()=>{
-    // create solvable permutation for NxN sliding puzzle
-    const arr = [...Array(size*size).keys()].map(i=> i===0? 0: i).slice(1).concat([0]); // 1..n-1,0
-    // shuffle by making legal moves from solved state
-    let grid = arr.slice();
-    const movesCount = 1000;
-    const idxToRC = (idx)=> [Math.floor(idx/size), idx%size];
-    const rcToIdx = (r,c)=> r*size + c;
-    for(let k=0;k<movesCount;k++){
-      const emptyIdx = grid.indexOf(0); const [er,ec] = idxToRC(emptyIdx); const neighbors=[];
-      [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc])=>{ const nr=er+dr,nc=ec+dc; if(nr>=0&&nr<size&&nc>=0&&nc<size) neighbors.push(rcToIdx(nr,nc)); });
-      const pick = neighbors[Math.floor(Math.random()*neighbors.length)]; [grid[emptyIdx], grid[pick]] = [grid[pick], grid[emptyIdx]];
-    }
-    return grid;
+  // checkout
+  const checkout = (total) => {
+    if (!user) { setAuthOpen(true); push({ title: 'Sign in required', description: 'Please sign in to checkout.' }); return; }
+    const order = { id: uid('ord'), items: cart, total, date: new Date().toISOString(), user: user.email };
+    setOrders(prev => [order, ...prev]);
+    clearCart();
+    push({ title: 'Order placed', description: `Order ${order.id} — ${currency(order.total)}` });
+    setCartOpen(false);
   };
 
-  const [tiles, setTiles] = useState(create);
-  const move = (i)=>{
-    const idxEmpty = tiles.indexOf(0); const r = Math.floor(idxEmpty/size), c = idxEmpty%size; const ir = Math.floor(i/size), ic = i%size;
-    if(Math.abs(r-ir)+Math.abs(c-ic)===1){ const t = tiles.slice(); t[idxEmpty]=t[i]; t[i]=0; setTiles(t); if(solved(t)){ registerScore('SlidingPuzzle', 200); grantAchievement('sliding_master','Solved sliding puzzle'); } }
-  };
-  const shuffle = ()=> setTiles(create());
-  return (
-    <div>
-      <div className="grid gap-1" style={{gridTemplateColumns:`repeat(${size}, 1fr)`, maxWidth:240}}>
-        {tiles.map((t,i)=> <button key={i} className={`p-4 aspect-square border flex items-center justify-center cursor-pointer ${t===0? 'bg-gray-200':''}`} onClick={()=>move(i)}>{t===0 ? '' : t}</button>)}
-      </div>
-      <div className="mt-3"><button className="btn" onClick={shuffle}>Shuffle</button></div>
-    </div>
-  );
-}
+  // admin add product
+  const adminAdd = (p) => { setProducts(prev => [p, ...prev]); push({ title: 'Product added', description: p.title }); };
 
-// ----------------------
-// 10) Pong (simple improved)
-// ----------------------
-function PongGame({ registerScore, grantAchievement }){
-  const canvasRef = useRef();
-  useEffect(()=>{
-    const canvas = canvasRef.current; const ctx = canvas.getContext('2d');
-    const W=600,H=300; canvas.width=W; canvas.height=H; let paddleY=(H-60)/2; let ball={x:300,y:150,vx:3,vy:2}; let score=0; let id;
-    const loop=()=>{
-      ctx.fillStyle='black'; ctx.fillRect(0,0,W,H);
-      ctx.fillStyle='white'; ctx.fillRect(10,paddleY,10,60);
-      ctx.beginPath(); ctx.arc(ball.x,ball.y,8,0,Math.PI*2); ctx.fill();
-      ball.x+=ball.vx; ball.y+=ball.vy;
-      if(ball.y<0||ball.y>H) ball.vy=-ball.vy;
-      if(ball.x<20 && ball.x>10 && ball.y>paddleY && ball.y<paddleY+60){ ball.vx=-ball.vx; score+=1; }
-      if(ball.x<0) { registerScore('Pong', score); grantAchievement('pong_player','Played Pong'); alert('Missed! Score: '+score); cancelAnimationFrame(id); return; }
-      if(ball.x>W) ball.vx=-ball.vx;
-      id = requestAnimationFrame(loop);
-    };
-    const onMove = (e)=>{ const rect = canvas.getBoundingClientRect(); const y = (e.clientY - rect.top) - 30; paddleY = clamp(y, 0, H-60); };
-    canvas.addEventListener('mousemove', onMove);
-    loop();
-    return ()=>{ cancelAnimationFrame(id); canvas.removeEventListener('mousemove', onMove); };
-  }, []);
-  return (
-    <div>
-      <canvas ref={canvasRef} width={600} height={300} className="border" />
-      <div className="mt-2">Move your mouse over the canvas to control the paddle.</div>
-    </div>
-  );
-}
+  // sales chart data (derived from orders)
+  const salesData = useMemo(() => {
+    const months = Array.from({ length: 6 }).map((_,i) => ({ month: i+1, sales: 0 }));
+    orders.forEach(o => {
+      const d = new Date(o.date);
+      const m = d.getMonth() % 6;
+      months[m].sales += o.total;
+    });
+    return months;
+  }, [orders]);
 
-// ----------------------
-// Profile / Leaderboards / Settings / About
-// ----------------------
-function Leaderboards({ scores }){
   return (
-    <div>
-      <h2 className="text-xl font-bold">Leaderboards</h2>
-      <div className="grid sm:grid-cols-2 gap-4 mt-4">
-        {Object.keys(scores).length===0 && <div>No scores yet — play to populate leaderboards.</div>}
-        {Object.entries(scores).map(([k,arr])=> (
-          <div key={k} className="card p-3">
-            <h4 className="font-semibold">{k}</h4>
-            <ol className="mt-2 list-decimal ml-5">
-              {arr.map((s)=> <li key={s.id}>{s.name}: {s.score} <span className="opacity-60 text-xs">({new Date(s.date).toLocaleString()})</span></li>)}
-            </ol>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      <div className="max-w-[1400px] mx-auto p-4">
+        <header className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"><Menu /></button>
+            <h1 className="text-xl font-bold">{lang === 'ru' ? 'ShopDemo' : 'ShopDemo'}</h1>
+            <div className="text-sm text-muted-foreground">Demo marketplace</div>
           </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
-function Profile({ user, setUser, achievements, scores }){
-  const myScores = Object.entries(scores).flatMap(([k,arr])=> arr.filter(s=>s.name===user.name).map(s=>({game:k,score:s.score,date:s.date,id:s.id}))).sort((a,b)=>b.score-a.score);
-  return (
-    <div>
-      <h2 className="text-xl font-bold">Profile — {user.name}</h2>
-      <div className="mt-3 grid sm:grid-cols-2 gap-4">
-        <div className="card p-3">
-          <h4 className="font-semibold">Achievements</h4>
-          <ul className="mt-2">
-            {Object.values(achievements).length===0 && <li className="opacity-60">No achievements yet.</li>}
-            {Object.values(achievements).map(a=> <li key={a.id}>{a.text} <span className="opacity-60">({new Date(a.date).toLocaleDateString()})</span></li>)}
-          </ul>
+          <div className="flex items-center gap-3 flex-1">
+            <div className="hidden md:block w-full">
+              <div className="flex gap-2">
+                <Input placeholder={lang === 'ru' ? 'Поиск товаров...' : 'Search products...'} value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} />
+                <Button onClick={() => { setQuery(''); }} icon={Search}>Search</Button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCartOpen(true)} className="relative p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"><ShoppingCart /><span className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full text-xs px-1">{cart.length}</span></button>
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700">{theme === 'dark' ? <Sun /> : <Moon />}</button>
+              <select value={lang} onChange={(e) => setLang(e.target.value)} className="px-2 py-1 border rounded">
+                <option value="ru">RU</option>
+                <option value="en">EN</option>
+              </select>
+              {user ? (
+                <div className="flex items-center gap-2">
+                  <div className="text-sm">{user.name}</div>
+                  <Button onClick={() => setUser(null)}>Logout</Button>
+                </div>
+              ) : (
+                <Button onClick={() => setAuthOpen(true)}>Login</Button>
+              )}
+              <Button onClick={() => setAdminOpen(s => !s)} icon={Settings}>Admin</Button>
+            </div>
+          </div>
+        </header>
+
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mt-4">
+          <aside className="md:col-span-1 space-y-4">
+            <div className="p-3 border rounded">
+              <h4 className="font-semibold">{lang === 'ru' ? 'Категории' : 'Categories'}</h4>
+              <ul className="mt-2 space-y-1">
+                {categories.map(c => (
+                  <li key={c}><button onClick={() => { setCategory(c); setPage(1); }} className={`w-full text-left p-2 rounded hover:bg-gray-100 ${category===c ? 'bg-gray-100 dark:bg-gray-800' : ''}`}>{c}</button></li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="p-3 border rounded">
+              <h4 className="font-semibold">{lang === 'ru' ? 'Фильтры' : 'Filters'}</h4>
+              <div className="mt-2 space-y-2">
+                <div>
+                  <label className="text-sm">{lang === 'ru' ? 'Мин цена' : 'Min price'}</label>
+                  <Input type="number" value={minPrice} onChange={e => setMinPrice(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm">{lang === 'ru' ? 'Макс цена' : 'Max price'}</label>
+                  <Input type="number" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm">{lang === 'ru' ? 'Сортировать' : 'Sort by'}</label>
+                  <select value={sort} onChange={e => setSort(e.target.value)} className="w-full px-2 py-1 border rounded">
+                    <option value="relevance">Relevance</option>
+                    <option value="price_asc">Price ↑</option>
+                    <option value="price_desc">Price ↓</option>
+                    <option value="rating">Rating</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 border rounded">
+              <h4 className="font-semibold">{lang === 'ru' ? 'Избранное' : 'Wishlist'}</h4>
+              <div className="mt-2 space-y-2">
+                {wishlist.length === 0 ? <div className="text-sm text-muted-foreground">Empty</div> : wishlist.map(w => (
+                  <div key={w.id} className="flex items-center gap-2">
+                    <img src={w.img} alt={w.title} className="w-12 h-8 object-cover rounded" />
+                    <div className="text-sm truncate">{w.title}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <main className="md:col-span-5 space-y-4">
+            <section className="p-3 border rounded">
+              <div className="flex items-center justify-between mb-3">
+                <div className="font-semibold">{lang === 'ru' ? 'Товары' : 'Products'}</div>
+                <div className="text-sm text-muted-foreground">{filtered.length} results</div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {pageItems.map(p => (
+                  <ProductCard key={p.id} p={p} onOpen={(prod) => { setActiveProduct(prod); setProductOpen(true); }} onAdd={addToCart} onToggleWish={toggleWish} wished={!!wishlist.find(w => w.id === p.id)} />
+                ))}
+              </div>
+
+              <div className="mt-4 flex items-center justify-between">
+                <div>
+                  <Button onClick={() => setPage(old => Math.max(1, old - 1))}>Prev</Button>
+                  <span className="px-2">Page {page} / {pages}</span>
+                  <Button onClick={() => setPage(old => Math.min(pages, old + 1))}>Next</Button>
+                </div>
+                <div className="text-sm text-muted-foreground">Tip: click View to open product details</div>
+              </div>
+            </section>
+
+            <section className="p-3 border rounded">
+              <h4 className="font-semibold">{lang === 'ru' ? 'Рекомендации' : 'Recommended'}</h4>
+              <div className="mt-3 grid grid-cols-2 md:grid-cols-6 gap-3">
+                {products.slice(0,6).map(p => (
+                  <div key={p.id} className="border rounded p-2 text-center">
+                    <img src={p.img} alt={p.title} className="w-full h-20 object-cover rounded" />
+                    <div className="text-sm truncate">{p.title}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="p-3 border rounded">
+              <h4 className="font-semibold">{lang === 'ru' ? 'Аналитика' : 'Analytics'}</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 h-64">
+                <div className="p-3 border rounded">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={salesData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="sales" stroke="#8884d8" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="p-3 border rounded">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={salesData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="sales" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </section>
+
+            <section className="p-3 border rounded">
+              <h4 className="font-semibold">{lang === 'ru' ? 'История заказов' : 'Order history'}</h4>
+              <div className="mt-2">
+                {orders.length === 0 ? <div className="text-sm text-muted-foreground">No orders yet</div> : (
+                  <table className="min-w-full divide-y">
+                    <thead className="bg-gray-100 dark:bg-gray-800"><tr><th className="p-2">ID</th><th className="p-2">Total</th><th className="p-2">Date</th><th className="p-2">User</th></tr></thead>
+                    <tbody>
+                      {orders.map(o => (
+                        <tr key={o.id} className="border-b"><td className="p-2">{o.id}</td><td className="p-2">{currency(o.total)}</td><td className="p-2">{new Date(o.date).toLocaleString()}</td><td className="p-2">{o.user}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </section>
+
+            {adminOpen && (
+              <section className="p-3 border rounded bg-gray-50 dark:bg-gray-800">
+                <h4 className="font-semibold">Admin panel</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                  <div className="p-3 border rounded">
+                    <h5 className="font-medium">Add product</h5>
+                    <AdminUploader onAdd={adminAdd} />
+                  </div>
+                  <div className="p-3 border rounded">
+                    <h5 className="font-medium">Products (table)</h5>
+                    <div className="overflow-auto mt-2">
+                      <table className="min-w-full divide-y"><thead className="bg-gray-100 dark:bg-gray-800"><tr><th className="p-2">Title</th><th className="p-2">Price</th><th className="p-2">Actions</th></tr></thead>
+                        <tbody>
+                          {products.map(pr => (
+                            <tr key={pr.id} className="border-b"><td className="p-2">{pr.title}</td><td className="p-2">{currency(pr.price)}</td><td className="p-2"><button onClick={() => { setProducts(prev => prev.filter(x => x.id !== pr.id)); push({ title: 'Deleted', description: pr.title }); }} className="text-red-600">Delete</button></td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
+          </main>
         </div>
-        <div className="card p-3">
-          <h4 className="font-semibold">Your top scores</h4>
-          <ul className="mt-2">
-            {myScores.length===0 && <li className="opacity-60">No personal scores yet.</li>}
-            {myScores.map(s=> <li key={s.id}>{s.game}: {s.score} <span className="opacity-60">({new Date(s.date).toLocaleString()})</span></li>)}
-          </ul>
-        </div>
+
       </div>
+
+      <ProductModal open={productOpen} product={activeProduct} onClose={() => setProductOpen(false)} onAdd={addToCart} onToggleWish={toggleWish} wished={!!wishlist.find(w => w.id === (activeProduct && activeProduct.id))} />
+
+      <CartDrawer open={cartOpen} items={cart} onClose={() => setCartOpen(false)} onChangeQty={changeQty} onRemove={removeFromCart} onCheckout={checkout} coupon={null} applyCoupon={() => {}} onClear={clearCart} />
+
+      <Modal open={authOpen} onClose={() => setAuthOpen(false)} title="Login">
+        <AuthForm onLogin={(u) => { setUser(u); setAuthOpen(false); push({ title: 'Welcome', description: `Hello ${u.name}` }); }} />
+      </Modal>
+
+      <Toasts toasts={toasts} />
     </div>
   );
 }
 
-function Settings({ settings, setSettings, user, setUser }){
+// ---------------- Auth Form ----------------
+function AuthForm({ onLogin }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const submit = (e) => { e.preventDefault(); if (!email.includes('@') || !name) return; onLogin({ name, email }); };
   return (
-    <div>
-      <h2 className="text-xl font-bold">Settings</h2>
-      <div className="mt-3 card p-3">
-        <label className="block">Difficulty
-          <select className="ml-2" value={settings.difficulty} onChange={(e)=>setSettings({...settings, difficulty:e.target.value})}>
-            <option>easy</option><option>normal</option><option>hard</option>
-          </select>
-        </label>
-        <label className="block mt-2">Theme
-          <select className="ml-2" value={user.theme} onChange={(e)=>setUser({...user, theme:e.target.value})}>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
-        <label className="block mt-2">Sound
-          <input type="checkbox" className="ml-2" checked={user.sound} onChange={(e)=>setUser({...user, sound:e.target.checked})} />
-        </label>
-      </div>
-    </div>
+    <form onSubmit={submit} className="space-y-3">
+      <Input placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
+      <Input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+      <div className="flex justify-end"><Button type="submit">Sign in</Button></div>
+    </form>
   );
 }
 
-function About(){
-  return (
-    <div>
-      <h2 className="text-xl font-bold">About this project</h2>
-      <p className="mt-2">This single-file React app bundles many tiny games with local leaderboards, achievements and small features. It's intended as a playground — extendable and modular.</p>
-      <ul className="mt-2 list-disc ml-6">
-        <li>10+ games (small implementations)</li>
-        <li>Local storage for user, scores, achievements</li>
-        <li>Quick play, tutorials, settings, notifications</li>
-      </ul>
-    </div>
-  );
-}
-
-/*
-Notes:
-- I avoided using location.reload() except as a harmless fallback text in one quick-restart button — most game components now provide proper reset logic.
-- Canvas-based games use addEventListener and always remove listeners in cleanup.
-- Sliding puzzle shuffle now always returns a solvable state by performing legal moves from solved configuration.
-
-If you still see a specific error, скажите точную ошибку или вставьте текст ошибки — я быстро поправлю.
-Если хотите, могу:
-- экспортировать файл в zip/сделать репозиторий scaffold;
-- вынести код по модулям (каждая игра в своей папке);
-- добавить сохранение в облако/авторизацию;
-- улучшить UI/UX и тему.
-*/
