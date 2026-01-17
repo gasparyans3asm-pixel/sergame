@@ -1,582 +1,1326 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-} from "recharts";
-import {
-  Sun,
-  Moon,
-  Menu,
-  X,
-  UploadCloud,
-  Search,
-  Trash2,
-  Edit3,
-  Plus,
-  Bell,
-  Settings,
-  Heart,
-  ShoppingCart,
-} from "lucide-react";
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интернет-Магазин Гаджетов - WildGadgets</title>
+    <style>
+        :root {
+            --primary: #4a148c;
+            --secondary: #ab47bc;
+            --accent: #f50057;
+            --bg: #ffffff;
+            --text: #000000;
+            --border: #e0e0e0;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            --hover-bg: #f5f5f5;
+        }
 
-// =============================================================
-// Single-file E‑commerce demo (Wildberries-like) — feature rich
-// - Theme (dark/light), language (ru/en)
-// - Search, categories, filters, sorting, pagination
-// - Product grid + product detail modal
-// - Cart drawer with quantity controls, coupon, subtotal
-// - Checkout form (mock) + order history
-// - User auth modal (mock), profile settings
-// - Wishlist, reviews, ratings
-// - Admin panel: product uploader, orders table
-// - Sales charts and quick analytics
-// - LocalStorage persistence for cart, user, orders, wishlist
-// - Toast notifications
-// =============================================================
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
 
-// ---------------- Helpers ----------------
-const uid = (p = "id") => `${p}_${Math.random().toString(36).slice(2, 9)}`;
-const currency = (n) => `$${Number(n).toFixed(2)}`;
+        body {
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
 
-const useLocal = (key, initial) => {
-  const [state, setState] = useState(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : initial;
-    } catch (e) {
-      return initial;
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(state));
-    } catch (e) {}
-  }, [key, state]);
-  return [state, setState];
-};
+        header {
+            height: 60px;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            border-bottom: 1px solid var(--border);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
 
-// ---------------- Mock product catalog ----------------
-const SAMPLE_PRODUCTS = [
-  { id: 1, title: "Women\'s Winter Coat", price: 119.99, category: "Clothing", rating: 4.6, reviews: 124, inStock: 12, colors: ["Black","Red","Blue"], img: "https://picsum.photos/seed/p1/420/320" },
-  { id: 2, title: "Men\'s Sneakers", price: 74.5, category: "Shoes", rating: 4.3, reviews: 98, inStock: 20, colors: ["White","Black"], img: "https://picsum.photos/seed/p2/420/320" },
-  { id: 3, title: "Leather Handbag", price: 89.0, category: "Accessories", rating: 4.8, reviews: 56, inStock: 7, colors: ["Tan","Black"], img: "https://picsum.photos/seed/p3/420/320" },
-  { id: 4, title: "Kids\' Hoodie", price: 29.99, category: "Kids", rating: 4.1, reviews: 44, inStock: 34, colors: ["Green","Blue"], img: "https://picsum.photos/seed/p4/420/320" },
-  { id: 5, title: "Smart Watch", price: 199.0, category: "Electronics", rating: 4.4, reviews: 210, inStock: 5, colors: ["Black","Silver"], img: "https://picsum.photos/seed/p5/420/320" },
-  { id: 6, title: "Running Tights", price: 39.5, category: "Clothing", rating: 4.0, reviews: 12, inStock: 18, colors: ["Grey","Black"], img: "https://picsum.photos/seed/p6/420/320" },
-  { id: 7, title: "Sunglasses", price: 49.99, category: "Accessories", rating: 4.2, reviews: 77, inStock: 25, colors: ["Black","Gold"], img: "https://picsum.photos/seed/p7/420/320" },
-  { id: 8, title: "Wireless Earbuds", price: 59.99, category: "Electronics", rating: 4.5, reviews: 300, inStock: 40, colors: ["White"], img: "https://picsum.photos/seed/p8/420/320" },
-  { id: 9, title: "Denim Jacket", price: 69.99, category: "Clothing", rating: 4.3, reviews: 88, inStock: 10, colors: ["Blue"], img: "https://picsum.photos/seed/p9/420/320" },
-  { id: 10, title: "Trail Backpack", price: 129.0, category: "Outdoors", rating: 4.7, reviews: 140, inStock: 6, colors: ["Olive","Black"], img: "https://picsum.photos/seed/p10/420/320" },
-];
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
 
-// ---------------- Toaster ----------------
-function useToasts() {
-  const [toasts, setToasts] = useState([]);
-  const push = (t) => {
-    const id = uid('t');
-    setToasts(s => [...s, { id, ...t }]);
-    setTimeout(() => setToasts(s => s.filter(x => x.id !== id)), 6000);
-  };
-  return { toasts, push };
-}
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 15px;
+        }
 
-function Toasts({ toasts }) {
-  return (
-    <div className="fixed right-4 bottom-4 z-50 flex flex-col gap-2">
-      {toasts.map(t => (
-        <div key={t.id} className="p-3 border rounded bg-white dark:bg-gray-800 shadow">
-          <div className="font-semibold">{t.title}</div>
-          <div className="text-sm text-muted-foreground">{t.description}</div>
+        nav ul li a {
+            text-decoration: none;
+            color: var(--text);
+            font-size: 1rem;
+            padding: 8px 16px;
+            transition: background 0.2s;
+        }
+
+        nav ul li a:hover {
+            background: var(--hover-bg);
+            border-radius: 4px;
+        }
+
+        .search-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-bar input {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            width: 300px;
+        }
+
+        .search-bar button {
+            padding: 8px 16px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .main-content {
+            padding: 80px 20px 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+            transition: box-shadow 0.3s;
+        }
+
+        .panel:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        #catalog {
+            grid-column: 1 / -1;
+            padding: 30px;
+        }
+
+        .panel-title {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: var(--primary);
+        }
+
+        .tab-container {
+            margin-top: 15px;
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+        }
+
+        .tab-button {
+            padding: 8px 16px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text);
+            border-bottom: 2px solid transparent;
+            transition: border-bottom 0.2s;
+            white-space: nowrap;
+        }
+
+        .tab-button.active {
+            border-bottom: 2px solid var(--primary);
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+
+        .product-card {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .product-card:hover {
+            background: var(--hover-bg);
+            transform: translateY(-5px);
+        }
+
+        .product-card img {
+            width: 100%;
+            height: 150px;
+            object-fit: contain;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+
+        .product-name {
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+
+        .product-price {
+            font-size: 1rem;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+
+        .add-to-cart {
+            padding: 6px 12px;
+            background: var(--secondary);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .add-to-cart:hover {
+            background: var(--primary);
+        }
+
+        .pagination {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .pagination button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            background: var(--hover-bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .pagination button.active {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .remove-item {
+            background: none;
+            border: none;
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .profile-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .profile-form input {
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        .profile-form button {
+            padding: 8px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .recommendations-list {
+            list-style: none;
+        }
+
+        .recommendations-list li {
+            margin-bottom: 10px;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        .order-history-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .order-history-item h4 {
+            margin-bottom: 8px;
+            color: var(--primary);
+        }
+
+        .order-items {
+            list-style: none;
+        }
+
+        .order-items li {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .payment-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .payment-option {
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .payment-option.selected {
+            background: var(--hover-bg);
+            border-color: var(--primary);
+        }
+
+        .reviews-list {
+            list-style: none;
+        }
+
+        .reviews-list li {
+            margin-bottom: 10px;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        .review-author {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .review-text {
+            font-style: italic;
+        }
+
+        .support-chat {
+            height: 250px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+
+        .chat-message {
+            margin-bottom: 8px;
+            padding: 6px 10px;
+            border-radius: 4px;
+            max-width: 80%;
+        }
+
+        .chat-message.user {
+            background: var(--hover-bg);
+            margin-left: auto;
+        }
+
+        .chat-message.bot {
+            background: #f0f0f0;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        .chat-input button {
+            padding: 8px 16px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .wishlist-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .remove-wishlist {
+            background: none;
+            border: none;
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .blog-post {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .blog-post h3 {
+            margin-bottom: 8px;
+            color: var(--primary);
+        }
+
+        .blog-post p {
+            margin-bottom: 10px;
+        }
+
+        .blog-post a {
+            color: var(--secondary);
+            text-decoration: none;
+        }
+
+        .faq-item {
+            margin-bottom: 15px;
+        }
+
+        .faq-question {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: var(--primary);
+        }
+
+        .faq-answer {
+            color: var(--text);
+        }
+
+        .contact-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .contact-form input,
+        .contact-form textarea {
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+
+        .contact-form button {
+            padding: 8px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .modal-content {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 500px;
+            width: 90%;
+            position: relative;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 1.2rem;
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        footer {
+            text-align: center;
+            padding: 15px;
+            background: var(--bg);
+            border-top: 1px solid var(--border);
+            margin-top: 20px;
+        }
+
+        /* Responsive улучшения */
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            .search-bar input {
+                width: 200px;
+            }
+
+            nav ul {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .product-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+
+            .product-card img {
+                height: 120px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">WildGadgets</div>
+        <nav>
+            <ul>
+                <li><a href="#catalog">Каталог</a></li>
+                <li><a href="#cart">Корзина</a></li>
+                <li><a href="#profile">Профиль</a></li>
+                <li><a href="#recommendations">Рекомендации</a></li>
+                <li><a href="#orders">Заказы</a></li>
+                <li><a href="#payments">Платежи</a></li>
+                <li><a href="#reviews">Отзывы</a></li>
+                <li><a href="#support">Поддержка</a></li>
+                <li><a href="#wishlist">Избранное</a></li>
+                <li><a href="#blog">Блог</a></li>
+                <li><a href="#faq">FAQ</a></li>
+                <li><a href="#contact">Контакты</a></li>
+            </ul>
+        </nav>
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Поиск товаров...">
+            <button onclick="searchProducts()">Поиск</button>
         </div>
-      ))}
-    </div>
-  );
-}
+    </header>
 
-// ---------------- Small UI primitives ----------------
-const Button = ({ children, className = "", icon: Icon, ...rest }) => (
-  <button className={`inline-flex items-center gap-2 px-3 py-2 rounded shadow ${className}`} {...rest}>
-    {Icon ? <Icon size={16} /> : null}
-    {children}
-  </button>
-);
-
-const Input = (props) => <input className="px-3 py-2 border rounded w-full" {...props} />;
-
-const Modal = ({ open, title, onClose, children, footer }) => {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-3xl">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold">{title}</h3>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100"><X size={18} /></button>
-        </div>
-        <div className="p-4 max-h-[70vh] overflow-auto">{children}</div>
-        {footer && <div className="p-4 border-t">{footer}</div>}
-      </div>
-    </div>
-  );
-};
-
-// ---------------- Product Card ----------------
-function ProductCard({ p, onOpen, onAdd, onToggleWish, wished }) {
-  return (
-    <div className="border rounded p-3 flex flex-col">
-      <div className="h-40 mb-2 overflow-hidden rounded">
-        <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
-      </div>
-      <div className="flex-1">
-        <h4 className="font-medium truncate">{p.title}</h4>
-        <div className="text-sm text-muted-foreground">{p.category}</div>
-        <div className="mt-2 flex items-center justify-between">
-          <div className="font-bold">{currency(p.price)}</div>
-          <div className="text-sm">⭐ {p.rating} ({p.reviews})</div>
-        </div>
-      </div>
-      <div className="mt-3 flex gap-2">
-        <Button onClick={() => onOpen(p)} className="flex-1">View</Button>
-        <Button onClick={() => onAdd(p)} className="flex-1" icon={ShoppingCart}>Add</Button>
-        <button onClick={() => onToggleWish(p)} className={`p-2 rounded ${wished ? 'bg-red-100' : ''}`}><Heart /></button>
-      </div>
-    </div>
-  );
-}
-
-// ---------------- Product Modal ----------------
-function ProductModal({ open, product, onClose, onAdd, onToggleWish, wished }) {
-  const [qty, setQty] = useState(1);
-  useEffect(() => setQty(1), [product]);
-  if (!open || !product) return null;
-  return (
-    <Modal open={open} onClose={onClose} title={product.title}>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="col-span-1">
-          <img src={product.img} alt={product.title} className="w-full h-72 object-cover rounded" />
-        </div>
-        <div className="col-span-2 space-y-3">
-          <div className="text-lg font-bold">{currency(product.price)}</div>
-          <div className="text-sm">Category: {product.category}</div>
-          <div className="text-sm">Rating: {product.rating} — Reviews: {product.reviews}</div>
-          <div className="text-sm">In stock: {product.inStock}</div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm">Qty</label>
-            <input type="number" min={1} max={product.inStock} value={qty} onChange={(e) => setQty(Number(e.target.value) || 1)} className="w-20 px-2 py-1 border rounded" />
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={() => { onAdd(product, qty); onClose(); }} className="bg-blue-600 text-white">Add to cart</Button>
-            <Button onClick={() => onToggleWish(product)} icon={Heart}>{wished ? 'Remove' : 'Wishlist'}</Button>
-          </div>
-          <div className="pt-2 border-t text-sm">Detailed description: This is a beautiful product that fits many use cases. Image and data are mocked for demo purposes.</div>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// ---------------- Cart Drawer ----------------
-function CartDrawer({ open, items, onClose, onChangeQty, onRemove, onCheckout, coupon, applyCoupon, onClear }) {
-  const subtotal = items.reduce((s, it) => s + it.product.price * it.qty, 0);
-  const discount = coupon === 'SALE10' ? subtotal * 0.1 : 0;
-  const total = subtotal - discount;
-  return (
-    <div className={`fixed top-0 right-0 h-full z-50 transition-transform shadow-lg ${open ? 'translate-x-0' : 'translate-x-full'}`} style={{ width: '420px' }}>
-      <div className="h-full bg-white dark:bg-gray-900 p-4 flex flex-col">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Cart</h3>
-          <button onClick={onClose}><X /></button>
-        </div>
-        <div className="flex-1 overflow-auto mt-3 space-y-3">
-          {items.length === 0 ? <div className="text-sm text-muted-foreground">Cart is empty</div> : items.map(it => (
-            <div key={it.product.id} className="flex items-center gap-3 border rounded p-2">
-              <img src={it.product.img} alt={it.product.title} className="w-16 h-12 object-cover rounded" />
-              <div className="flex-1">
-                <div className="font-medium truncate">{it.product.title}</div>
-                <div className="text-sm">{currency(it.product.price)}</div>
-                <div className="flex items-center gap-2 mt-1">
-                  <input type="number" min={1} max={it.product.inStock} value={it.qty} onChange={(e) => onChangeQty(it.product.id, Number(e.target.value) || 1)} className="w-20 px-2 py-1 border rounded" />
-                  <button onClick={() => onRemove(it.product.id)} className="text-sm text-red-600">Remove</button>
+    <div class="main-content">
+        <!-- Панель 1: Каталог товаров (теперь полностраничный) -->
+        <div class="panel" id="catalog">
+            <div class="panel-title">Каталог Товаров</div>
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-button active" onclick="openTab(this, 'smartphones')">Смартфоны</button>
+                    <button class="tab-button" onclick="openTab(this, 'laptops')">Ноутбуки</button>
+                    <button class="tab-button" onclick="openTab(this, 'accessories')">Аксессуары</button>
+                    <button class="tab-button" onclick="openTab(this, 'gadgets')">Гаджеты</button>
+                    <button class="tab-button" onclick="openTab(this, 'tablets')">Планшеты</button>
+                    <button class="tab-button" onclick="openTab(this, 'audio')">Аудио</button>
+                    <button class="tab-button" onclick="openTab(this, 'smart_home')">Умный Дом</button>
+                    <button class="tab-button" onclick="openTab(this, 'accessories_extra')">Дополнительные Аксессуары</button>
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 border-t pt-3">
-          <div className="flex items-center gap-2">
-            <Input placeholder="Coupon code" value={coupon || ''} onChange={(e) => applyCoupon(e.target.value)} />
-            <Button onClick={() => applyCoupon(coupon)}>Apply</Button>
-          </div>
-          <div className="mt-3 flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">Subtotal</div>
-            <div className="font-semibold">{currency(subtotal)}</div>
-          </div>
-          {discount > 0 && (
-            <div className="flex items-center justify-between text-sm text-green-600">Discount {currency(discount)}</div>
-          )}
-          <div className="mt-2 flex items-center justify-between">
-            <div className="font-bold">Total</div>
-            <div className="font-bold">{currency(total)}</div>
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Button onClick={() => onCheckout(total)} className="flex-1 bg-green-600 text-white">Checkout</Button>
-            <Button onClick={onClear} className="flex-1 bg-red-50">Clear</Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------- Admin Product Uploader ----------------
-function AdminUploader({ onAdd }) {
-  const [title, setTitle] = useState("");
-  const [price, setPrice] = useState(0);
-  const [category, setCategory] = useState("");
-  const [img, setImg] = useState("");
-  const submit = (e) => {
-    e.preventDefault();
-    if (!title || !price) return;
-    onAdd({ id: Date.now(), title, price: Number(price), category, rating: 0, reviews: 0, inStock: 10, colors: [], img: img || 'https://picsum.photos/420/320' });
-    setTitle(''); setPrice(0); setCategory(''); setImg('');
-  };
-  return (
-    <form onSubmit={submit} className="space-y-3">
-      <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <Input placeholder="Price" type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
-      <Input placeholder="Category" value={category} onChange={(e) => setCategory(e.target.value)} />
-      <Input placeholder="Image URL" value={img} onChange={(e) => setImg(e.target.value)} />
-      <div className="flex justify-end"><Button type="submit">Add product</Button></div>
-    </form>
-  );
-}
-
-// ---------------- Main App ----------------
-export default function App() {
-  const [theme, setTheme] = useLocal('theme_v2', 'light');
-  const [lang, setLang] = useLocal('lang_v2', 'ru');
-  const [products, setProducts] = useLocal('catalog_v1', SAMPLE_PRODUCTS);
-  const [cart, setCart] = useLocal('cart_v1', []);
-  const [wishlist, setWishlist] = useLocal('wish_v1', []);
-  const [orders, setOrders] = useLocal('orders_v1', []);
-  const [user, setUser] = useLocal('user_v1', null);
-
-  const { toasts, push } = useToasts();
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
-
-  // UI state
-  const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('All');
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
-  const [sort, setSort] = useState('relevance');
-  const [page, setPage] = useState(1);
-  const perPage = 6;
-
-  // panels/modals
-  const [productOpen, setProductOpen] = useState(false);
-  const [activeProduct, setActiveProduct] = useState(null);
-  const [cartOpen, setCartOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
-
-  // derived
-  const categories = useMemo(() => ['All', ...Array.from(new Set(products.map(p => p.category)))], [products]);
-
-  const filtered = useMemo(() => {
-    let arr = [...products];
-    if (query) arr = arr.filter(p => p.title.toLowerCase().includes(query.toLowerCase()));
-    if (category !== 'All') arr = arr.filter(p => p.category === category);
-    if (minPrice) arr = arr.filter(p => p.price >= Number(minPrice));
-    if (maxPrice) arr = arr.filter(p => p.price <= Number(maxPrice));
-    if (sort === 'price_asc') arr.sort((a,b) => a.price - b.price);
-    if (sort === 'price_desc') arr.sort((a,b) => b.price - a.price);
-    if (sort === 'rating') arr.sort((a,b) => b.rating - a.rating);
-    return arr;
-  }, [products, query, category, minPrice, maxPrice, sort]);
-
-  const pages = Math.max(1, Math.ceil(filtered.length / perPage));
-  const pageItems = filtered.slice((page-1)*perPage, page*perPage);
-
-  // cart ops
-  const addToCart = (product, qty = 1) => {
-    setCart(prev => {
-      const found = prev.find(i => i.product.id === product.id);
-      if (found) return prev.map(i => i.product.id === product.id ? { ...i, qty: i.qty + qty } : i);
-      return [{ product, qty }, ...prev];
-    });
-    push({ title: 'Added to cart', description: `${product.title} x${qty}` });
-  };
-  const changeQty = (id, qty) => setCart(prev => prev.map(i => i.product.id === id ? { ...i, qty } : i));
-  const removeFromCart = (id) => setCart(prev => prev.filter(i => i.product.id !== id));
-  const clearCart = () => setCart([]);
-
-  // wishlist
-  const toggleWish = (p) => {
-    setWishlist(prev => {
-      if (prev.find(x => x.id === p.id)) {
-        push({ title: 'Removed from wishlist', description: p.title });
-        return prev.filter(x => x.id !== p.id);
-      }
-      push({ title: 'Added to wishlist', description: p.title });
-      return [p, ...prev];
-    });
-  };
-
-  // checkout
-  const checkout = (total) => {
-    if (!user) { setAuthOpen(true); push({ title: 'Sign in required', description: 'Please sign in to checkout.' }); return; }
-    const order = { id: uid('ord'), items: cart, total, date: new Date().toISOString(), user: user.email };
-    setOrders(prev => [order, ...prev]);
-    clearCart();
-    push({ title: 'Order placed', description: `Order ${order.id} — ${currency(order.total)}` });
-    setCartOpen(false);
-  };
-
-  // admin add product
-  const adminAdd = (p) => { setProducts(prev => [p, ...prev]); push({ title: 'Product added', description: p.title }); };
-
-  // sales chart data (derived from orders)
-  const salesData = useMemo(() => {
-    const months = Array.from({ length: 6 }).map((_,i) => ({ month: i+1, sales: 0 }));
-    orders.forEach(o => {
-      const d = new Date(o.date);
-      const m = d.getMonth() % 6;
-      months[m].sales += o.total;
-    });
-    return months;
-  }, [orders]);
-
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-      <div className="max-w-[1400px] mx-auto p-4">
-        <header className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <button className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"><Menu /></button>
-            <h1 className="text-xl font-bold">{lang === 'ru' ? 'ShopDemo' : 'ShopDemo'}</h1>
-            <div className="text-sm text-muted-foreground">Demo marketplace</div>
-          </div>
-
-          <div className="flex items-center gap-3 flex-1">
-            <div className="hidden md:block w-full">
-              <div className="flex gap-2">
-                <Input placeholder={lang === 'ru' ? 'Поиск товаров...' : 'Search products...'} value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} />
-                <Button onClick={() => { setQuery(''); }} icon={Search}>Search</Button>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button onClick={() => setCartOpen(true)} className="relative p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"><ShoppingCart /><span className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full text-xs px-1">{cart.length}</span></button>
-              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700">{theme === 'dark' ? <Sun /> : <Moon />}</button>
-              <select value={lang} onChange={(e) => setLang(e.target.value)} className="px-2 py-1 border rounded">
-                <option value="ru">RU</option>
-                <option value="en">EN</option>
-              </select>
-              {user ? (
-                <div className="flex items-center gap-2">
-                  <div className="text-sm">{user.name}</div>
-                  <Button onClick={() => setUser(null)}>Logout</Button>
-                </div>
-              ) : (
-                <Button onClick={() => setAuthOpen(true)}>Login</Button>
-              )}
-              <Button onClick={() => setAdminOpen(s => !s)} icon={Settings}>Admin</Button>
-            </div>
-          </div>
-        </header>
-
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mt-4">
-          <aside className="md:col-span-1 space-y-4">
-            <div className="p-3 border rounded">
-              <h4 className="font-semibold">{lang === 'ru' ? 'Категории' : 'Categories'}</h4>
-              <ul className="mt-2 space-y-1">
-                {categories.map(c => (
-                  <li key={c}><button onClick={() => { setCategory(c); setPage(1); }} className={`w-full text-left p-2 rounded hover:bg-gray-100 ${category===c ? 'bg-gray-100 dark:bg-gray-800' : ''}`}>{c}</button></li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="p-3 border rounded">
-              <h4 className="font-semibold">{lang === 'ru' ? 'Фильтры' : 'Filters'}</h4>
-              <div className="mt-2 space-y-2">
-                <div>
-                  <label className="text-sm">{lang === 'ru' ? 'Мин цена' : 'Min price'}</label>
-                  <Input type="number" value={minPrice} onChange={e => setMinPrice(e.target.value)} />
-                </div>
-                <div>
-                  <label className="text-sm">{lang === 'ru' ? 'Макс цена' : 'Max price'}</label>
-                  <Input type="number" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} />
-                </div>
-                <div>
-                  <label className="text-sm">{lang === 'ru' ? 'Сортировать' : 'Sort by'}</label>
-                  <select value={sort} onChange={e => setSort(e.target.value)} className="w-full px-2 py-1 border rounded">
-                    <option value="relevance">Relevance</option>
-                    <option value="price_asc">Price ↑</option>
-                    <option value="price_desc">Price ↓</option>
-                    <option value="rating">Rating</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-3 border rounded">
-              <h4 className="font-semibold">{lang === 'ru' ? 'Избранное' : 'Wishlist'}</h4>
-              <div className="mt-2 space-y-2">
-                {wishlist.length === 0 ? <div className="text-sm text-muted-foreground">Empty</div> : wishlist.map(w => (
-                  <div key={w.id} className="flex items-center gap-2">
-                    <img src={w.img} alt={w.title} className="w-12 h-8 object-cover rounded" />
-                    <div className="text-sm truncate">{w.title}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          <main className="md:col-span-5 space-y-4">
-            <section className="p-3 border rounded">
-              <div className="flex items-center justify-between mb-3">
-                <div className="font-semibold">{lang === 'ru' ? 'Товары' : 'Products'}</div>
-                <div className="text-sm text-muted-foreground">{filtered.length} results</div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {pageItems.map(p => (
-                  <ProductCard key={p.id} p={p} onOpen={(prod) => { setActiveProduct(prod); setProductOpen(true); }} onAdd={addToCart} onToggleWish={toggleWish} wished={!!wishlist.find(w => w.id === p.id)} />
-                ))}
-              </div>
-
-              <div className="mt-4 flex items-center justify-between">
-                <div>
-                  <Button onClick={() => setPage(old => Math.max(1, old - 1))}>Prev</Button>
-                  <span className="px-2">Page {page} / {pages}</span>
-                  <Button onClick={() => setPage(old => Math.min(pages, old + 1))}>Next</Button>
-                </div>
-                <div className="text-sm text-muted-foreground">Tip: click View to open product details</div>
-              </div>
-            </section>
-
-            <section className="p-3 border rounded">
-              <h4 className="font-semibold">{lang === 'ru' ? 'Рекомендации' : 'Recommended'}</h4>
-              <div className="mt-3 grid grid-cols-2 md:grid-cols-6 gap-3">
-                {products.slice(0,6).map(p => (
-                  <div key={p.id} className="border rounded p-2 text-center">
-                    <img src={p.img} alt={p.title} className="w-full h-20 object-cover rounded" />
-                    <div className="text-sm truncate">{p.title}</div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="p-3 border rounded">
-              <h4 className="font-semibold">{lang === 'ru' ? 'Аналитика' : 'Analytics'}</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 h-64">
-                <div className="p-3 border rounded">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={salesData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="sales" stroke="#8884d8" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="p-3 border rounded">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={salesData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="sales" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </section>
-
-            <section className="p-3 border rounded">
-              <h4 className="font-semibold">{lang === 'ru' ? 'История заказов' : 'Order history'}</h4>
-              <div className="mt-2">
-                {orders.length === 0 ? <div className="text-sm text-muted-foreground">No orders yet</div> : (
-                  <table className="min-w-full divide-y">
-                    <thead className="bg-gray-100 dark:bg-gray-800"><tr><th className="p-2">ID</th><th className="p-2">Total</th><th className="p-2">Date</th><th className="p-2">User</th></tr></thead>
-                    <tbody>
-                      {orders.map(o => (
-                        <tr key={o.id} className="border-b"><td className="p-2">{o.id}</td><td className="p-2">{currency(o.total)}</td><td className="p-2">{new Date(o.date).toLocaleString()}</td><td className="p-2">{o.user}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </section>
-
-            {adminOpen && (
-              <section className="p-3 border rounded bg-gray-50 dark:bg-gray-800">
-                <h4 className="font-semibold">Admin panel</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                  <div className="p-3 border rounded">
-                    <h5 className="font-medium">Add product</h5>
-                    <AdminUploader onAdd={adminAdd} />
-                  </div>
-                  <div className="p-3 border rounded">
-                    <h5 className="font-medium">Products (table)</h5>
-                    <div className="overflow-auto mt-2">
-                      <table className="min-w-full divide-y"><thead className="bg-gray-100 dark:bg-gray-800"><tr><th className="p-2">Title</th><th className="p-2">Price</th><th className="p-2">Actions</th></tr></thead>
-                        <tbody>
-                          {products.map(pr => (
-                            <tr key={pr.id} className="border-b"><td className="p-2">{pr.title}</td><td className="p-2">{currency(pr.price)}</td><td className="p-2"><button onClick={() => { setProducts(prev => prev.filter(x => x.id !== pr.id)); push({ title: 'Deleted', description: pr.title }); }} className="text-red-600">Delete</button></td></tr>
-                          ))}
-                        </tbody>
-                      </table>
+                <div id="smartphones" class="tab-content active">
+                    <div class="product-grid">
+                        <div class="product-card">
+                            <img src="https://media.wired.com/photos/684368b03c448a9bc4a5dc90/master/w_1600%2Cc_limit/Galaxy%2520A36%2520SOURCE%2520Julian%2520Chokkattu.png" alt="Galaxy Pro">
+                            <div class="product-name">Galaxy Pro</div>
+                            <div class="product-price">45 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Galaxy Pro', 45990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://media.cnn.com/api/v1/images/stellar/prod/iphone-15-pro-product-card-v1-cnnu.jpg?c=16x9&q=h_720,w_1280,c_fill" alt="iPhone 15">
+                            <div class="product-name">iPhone 15</div>
+                            <div class="product-price">89 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('iPhone 15', 89990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://www.dxomark.com/wp-content/uploads/medias/post-157488/Google-Pixel-8-Pro-featured-image-packshot-review.jpg" alt="Pixel 8">
+                            <div class="product-name">Pixel 8</div>
+                            <div class="product-price">59 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Pixel 8', 59990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://www.cnet.com/a/img/resize/9950d4e03dddc5d6cebe471ff54e28f92d8c16b9/hub/2023/12/05/c5a5f98b-d734-47b6-a072-4340479a9856/oneplus-12-lineup-web.png?auto=webp&fit=crop&height=675&width=1200" alt="OnePlus 12">
+                            <div class="product-name">OnePlus 12</div>
+                            <div class="product-price">49 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('OnePlus 12', 49990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://consumer.huawei.com/dam/content/dam/huawei-cbg-site/common/mkt/pdp/phones/p60-pro/images/design/huawei-p60-pro-colours-01.jpg" alt="Huawei P60">
+                            <div class="product-name">Huawei P60</div>
+                            <div class="product-price">39 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Huawei P60', 39990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://i02.appmifile.com/438_operatorx_operatorx_uploadTiptapImage/24/02/2024/7b77402340f2953a221fd9c820e90f0e.jpg" alt="Xiaomi 14">
+                            <div class="product-name">Xiaomi 14</div>
+                            <div class="product-price">34 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Xiaomi 14', 34990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/61o+mMOlBeL.jpg" alt="Samsung A55">
+                            <div class="product-name">Samsung A55</div>
+                            <div class="product-price">29 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Samsung A55', 29990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://fonezone.me/cdn/shop/articles/52f92b986bcc3329b0bc0edeb546c752.png?v=1754140428&width=1100" alt="Realme GT6">
+                            <div class="product-name">Realme GT6</div>
+                            <div class="product-price">24 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Realme GT6', 24990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://media.wired.com/photos/684368b03c448a9bc4a5dc90/master/w_1600%2Cc_limit/Galaxy%2520A36%2520SOURCE%2520Julian%2520Chokkattu.png" alt="Galaxy S24">
+                            <div class="product-name">Galaxy S24</div>
+                            <div class="product-price">79 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Galaxy S24', 79990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://media.cnn.com/api/v1/images/stellar/prod/iphone-15-pro-product-card-v1-cnnu.jpg?c=16x9&q=h_720,w_1280,c_fill" alt="iPhone 14">
+                            <div class="product-name">iPhone 14</div>
+                            <div class="product-price">69 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('iPhone 14', 69990)">В корзину</button>
+                        </div>
                     </div>
-                  </div>
+                    <div class="pagination">
+                        <button onclick="paginate(1)" class="active">1</button>
+                        <button onclick="paginate(2)">2</button>
+                        <button onclick="paginate(3)">3</button>
+                    </div>
                 </div>
-              </section>
-            )}
-
-          </main>
+                <div id="laptops" class="tab-content">
+                    <div class="product-grid">
+                        <div class="product-card">
+                            <img src="https://www.apple.com/newsroom/images/2024/03/apple-unveils-the-new-13-and-15-inch-macbook-air-with-the-powerful-m3-chip/tile/Apple-MacBook-Air-2-up-hero-240304-lp.jpg.og.jpg?202512190712" alt="MacBook Air M3">
+                            <div class="product-name">MacBook Air M3</div>
+                            <div class="product-price">129 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('MacBook Air M3', 129990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/61kn7cyc46L.jpg" alt="Dell XPS 13">
+                            <div class="product-name">Dell XPS 13</div>
+                            <div class="product-price">99 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Dell XPS 13', 99990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/71aTEZOda0L._AC_UF894,1000_QL80_.jpg" alt="HP Pavilion">
+                            <div class="product-name">HP Pavilion</div>
+                            <div class="product-price">69 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('HP Pavilion', 69990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://webobjects2.cdw.com/is/image/CDW/7885651?$product-main$" alt="Lenovo ThinkPad">
+                            <div class="product-name">Lenovo ThinkPad</div>
+                            <div class="product-price">89 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Lenovo ThinkPad', 89990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://cdn.cs.1worldsync.com/ed/55/ed55e3a4-fa53-4744-8f51-70a11ceeb372.jpg" alt="Asus Zenbook">
+                            <div class="product-name">Asus Zenbook</div>
+                            <div class="product-price">79 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Asus Zenbook', 79990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://pisces.bbystatic.com/image2/BestBuy_US/images/products/3aefce95-ef22-4b4e-ad8d-114f3dc38976.jpg;maxHeight=828;maxWidth=400?format=webp" alt="Acer Aspire">
+                            <div class="product-name">Acer Aspire</div>
+                            <div class="product-price">49 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Acer Aspire', 49990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://media.officedepot.com/images/f_auto,q_auto,e_sharpen,h_450/products/4432623/4432623_o01_111120/4432623" alt="MSI Modern">
+                            <div class="product-name">MSI Modern</div>
+                            <div class="product-price">59 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('MSI Modern', 59990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://crdms.images.consumerreports.org/prod/products/cr/models/387684-laptopcomputers-huawei-matebook.png" alt="Huawei MateBook">
+                            <div class="product-name">Huawei MateBook</div>
+                            <div class="product-price">74 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Huawei MateBook', 74990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://www.apple.com/newsroom/images/2024/03/apple-unveils-the-new-13-and-15-inch-macbook-air-with-the-powerful-m3-chip/tile/Apple-MacBook-Air-2-up-hero-240304-lp.jpg.og.jpg?202512190712" alt="MacBook Pro">
+                            <div class="product-name">MacBook Pro</div>
+                            <div class="product-price">159 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('MacBook Pro', 159990)">В корзину</button>
+                        </div>
+                    </div>
+                    <div class="pagination">
+                        <button onclick="paginate(1)" class="active">1</button>
+                        <button onclick="paginate(2)">2</button>
+                    </div>
+                </div>
+                <div id="accessories" class="tab-content">
+                    <div class="product-grid">
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/51PJz1smiHL._AC_UF894,1000_QL80_.jpg" alt="Беспроводная зарядка">
+                            <div class="product-name">Беспроводная зарядка</div>
+                            <div class="product-price">1 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Беспроводная зарядка', 1990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://s.yimg.com/uu/api/res/1.2/R1ZSeUQVIQvFZo1I54afnA--~B/Zmk9c3RyaW07aD03MjA7dz0xMjgwO2FwcGlkPXl0YWNoeW9u/https://s.yimg.com/os/creatr-uploaded-images/2025-05/372091f0-31ad-11f0-b73f-61b1009cb553" alt="Bluetooth наушники">
+                            <div class="product-name">Bluetooth наушники</div>
+                            <div class="product-price">3 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Bluetooth наушники', 3990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/S/aplus-media-library-service-media/07b7d95f-0023-4d4b-89f7-32ffd8c67dfb.__CR0,0,970,600_PT0_SX970_V1___.jpg" alt="Чехол для смартфона">
+                            <div class="product-name">Чехол для смартфона</div>
+                            <div class="product-price">990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Чехол для смартфона', 990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://cdn.shopify.com/s/files/1/2679/7450/products/screen_protector_-_0003_3.jpg?w=807&h=807&fit=crop" alt="Защитное стекло">
+                            <div class="product-name">Защитное стекло</div>
+                            <div class="product-price">490 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Защитное стекло', 490)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/61VF2ZdD02L._AC_UF350,350_QL80_.jpg" alt="Портативный аккумулятор">
+                            <div class="product-name">Портативный аккумулятор</div>
+                            <div class="product-price">2 490 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Портативный аккумулятор', 2490)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://webobjects2.cdw.com/is/image/CDW/4459827?$product-main$" alt="Кабель USB-C">
+                            <div class="product-name">Кабель USB-C</div>
+                            <div class="product-price">590 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Кабель USB-C', 590)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://cdn11.bigcommerce.com/s-l85bzww3lo/images/stencil/3840w/products/1157/6976/prouct-image-thumbnail-whisper-click-mouse__89924.1710187150.jpg?compression=lossy" alt="Мышь беспроводная">
+                            <div class="product-name">Мышь беспроводная</div>
+                            <div class="product-price">1 490 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Мышь беспроводная', 1490)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://cdn.thewirecutter.com/wp-content/media/2024/04/mechanicalkeyboards-2048px-1360-1.jpg" alt="Клавиатура">
+                            <div class="product-name">Клавиатура</div>
+                            <div class="product-price">2 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Клавиатура', 2990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/51PJz1smiHL._AC_UF894,1000_QL80_.jpg" alt="Адаптер USB">
+                            <div class="product-name">Адаптер USB</div>
+                            <div class="product-price">790 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Адаптер USB', 790)">В корзину</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="gadgets" class="tab-content">
+                    <div class="product-grid">
+                        <div class="product-card">
+                            <img src="https://www.apple.com/newsroom/images/product/watch/standard/Apple_watch-series7_hero_09142021_big.jpg.slideshow-xlarge.jpg" alt="Умные часы">
+                            <div class="product-name">Умные часы</div>
+                            <div class="product-price">14 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Умные часы', 14990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/41xhYIkVIuL._AC_UF894,1000_QL80_.jpg" alt="VR-очки">
+                            <div class="product-name">VR-очки</div>
+                            <div class="product-price">29 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('VR-очки', 29990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://cdn.thewirecutter.com/wp-content/media/2025/02/BEST-DRONES-PHOTOS-VIDEOS-2048px-9946.jpg?auto=webp&quality=75&width=1024" alt="Дрон">
+                            <div class="product-name">Дрон</div>
+                            <div class="product-price">19 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Дрон', 19990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://www.matteralpha.com/media/cache/resolve/product_carousel_grid/61tmovgygll-ac-sl1500.jpg" alt="Умный дом хаб">
+                            <div class="product-name">Умный дом хаб</div>
+                            <div class="product-price">9 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Умный дом хаб', 9990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://cdn.thewirecutter.com/wp-content/media/2023/06/fitnesstrackers-2048px-09826.jpg?auto=webp&quality=75&width=1024" alt="Фитнес-браслет">
+                            <div class="product-name">Фитнес-браслет</div>
+                            <div class="product-price">4 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Фитнес-браслет', 4990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/51Wxzov8MyL._AC_UF894,1000_QL80_.jpg" alt="Экшн-камера">
+                            <div class="product-name">Экшн-камера</div>
+                            <div class="product-price">12 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Экшн-камера', 12990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://cdn.thewirecutter.com/wp-content/media/2025/11/BEST-ROBOT-VACUUMS-2048px-6443-3x2-1.jpg?auto=webp&quality=75&crop=16:9,smart&width=1024" alt="Робот-пылесос">
+                            <div class="product-name">Робот-пылесос</div>
+                            <div class="product-price">24 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Робот-пылесос', 24990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/61udkIT7T2L._AC_UF1000,1000_QL80_.jpg" alt="Смарт-лампа">
+                            <div class="product-name">Смарт-лампа</div>
+                            <div class="product-price">1 490 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Смарт-лампа', 1490)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://www.apple.com/newsroom/images/product/watch/standard/Apple_watch-series7_hero_09142021_big.jpg.slideshow-xlarge.jpg" alt="Фитнес-трекер Pro">
+                            <div class="product-name">Фитнес-трекер Pro</div>
+                            <div class="product-price">6 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Фитнес-трекер Pro', 6990)">В корзину</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="tablets" class="tab-content">
+                    <div class="product-grid">
+                        <div class="product-card">
+                            <img src="https://crdms.images.consumerreports.org/prod/products/cr/models/405971-9-inch-screen-and-larger-tablets-apple-ipad-air-64gb-2022-10027817.png" alt="iPad Air">
+                            <div class="product-name">iPad Air</div>
+                            <div class="product-price">49 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('iPad Air', 49990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/71fA-BnMbHL.jpg" alt="Samsung Tab S9">
+                            <div class="product-name">Samsung Tab S9</div>
+                            <div class="product-price">39 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Samsung Tab S9', 39990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://p4-ofp.static.pub/ShareResource/na/products/tablets/725x515/lenovo-tab-p11.png" alt="Lenovo Tab P11">
+                            <div class="product-name">Lenovo Tab P11</div>
+                            <div class="product-price">19 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Lenovo Tab P11', 19990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://microless.com/cdn/products/e2566fdd470ab08db21d794060a85829-hi.jpg" alt="Huawei MatePad">
+                            <div class="product-name">Huawei MatePad</div>
+                            <div class="product-price">24 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Huawei MatePad', 24990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://pisces.bbystatic.com/image2/BestBuy_US/images/products/59610f1e-c3f5-4a4c-8282-2c00227e1bef.jpg;maxHeight=828;maxWidth=400?format=webp" alt="Amazon Fire HD">
+                            <div class="product-name">Amazon Fire HD</div>
+                            <div class="product-price">9 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Amazon Fire HD', 9990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://www.androidpimp.com/wp-content/uploads/2023/10/Xiaomi-Pad-6-Max-Tablet.webp" alt="Xiaomi Pad 6">
+                            <div class="product-name">Xiaomi Pad 6</div>
+                            <div class="product-price">29 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Xiaomi Pad 6', 29990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://crdms.images.consumerreports.org/prod/products/cr/models/405971-9-inch-screen-and-larger-tablets-apple-ipad-air-64gb-2022-10027817.png" alt="iPad Mini">
+                            <div class="product-name">iPad Mini</div>
+                            <div class="product-price">34 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('iPad Mini', 34990)">В корзину</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="audio" class="tab-content">
+                    <div class="product-grid">
+                        <div class="product-card">
+                            <img src="https://i.rtings.com/assets/products/Nc33W9lA/sony-wh-1000xm5-wireless/design-medium.jpg?format=auto" alt="Sony WH-1000XM5">
+                            <div class="product-name">Sony WH-1000XM5</div>
+                            <div class="product-price">29 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Sony WH-1000XM5', 29990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://content.abt.com/image.php/Apple-AirPods-Pro-2nd-Gen-MQD83AMA-Over-Case.jpg?image=/images/products/BDP_Images/Apple-AirPods-Pro-2nd-Gen-MQD83AMA-Over-Case.jpg&canvas=1&width=750&height=550" alt="AirPods Pro">
+                            <div class="product-name">AirPods Pro</div>
+                            <div class="product-price">19 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('AirPods Pro', 19990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://webobjects2.cdw.com/is/image/CDW/6704929?$product-main$" alt="JBL Speaker">
+                            <div class="product-name">JBL Speaker</div>
+                            <div class="product-price">4 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('JBL Speaker', 4990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://www.kroger.com/product/images/xlarge/front/0001781784896" alt="Bose QuietComfort">
+                            <div class="product-name">Bose QuietComfort</div>
+                            <div class="product-price">24 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Bose QuietComfort', 24990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://content.abt.com/image.php/big_HD800S.jpg?image=/images/products/BDP_Images/big_HD800S.jpg&canvas=1&width=750&height=550" alt="Sennheiser HD">
+                            <div class="product-name">Sennheiser HD</div>
+                            <div class="product-price">14 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Sennheiser HD', 14990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://images.crutchfieldonline.com/ImageHandler/trim/750/457/products/2024/37/972/g972MNTOR3B-o_other1.jpg" alt="Marshall Monitor">
+                            <div class="product-name">Marshall Monitor</div>
+                            <div class="product-price">9 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Marshall Monitor', 9990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://i.rtings.com/assets/products/Nc33W9lA/sony-wh-1000xm5-wireless/design-medium.jpg?format=auto" alt="Sony WF-1000XM5">
+                            <div class="product-name">Sony WF-1000XM5</div>
+                            <div class="product-price">19 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Sony WF-1000XM5', 19990)">В корзину</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="smart_home" class="tab-content">
+                    <div class="product-grid">
+                        <div class="product-card">
+                            <img src="https://www.matteralpha.com/media/cache/resolve/product_carousel_grid/61tmovgygll-ac-sl1500.jpg" alt="Умный хаб">
+                            <div class="product-name">Умный хаб</div>
+                            <div class="product-price">7 990 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Умный хаб', 7990)">В корзину</button>
+                        </div>
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/61udkIT7T2L._AC_UF1000,1000_QL80_.jpg" alt="Смарт-лампа">
+                            <div class="product-name">Смарт-лампа</div>
+                            <div class="product-price">1 490 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Смарт-лампа', 1490)">В корзину</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="accessories_extra" class="tab-content">
+                    <div class="product-grid">
+                        <div class="product-card">
+                            <img src="https://m.media-amazon.com/images/I/51PJz1smiHL._AC_UF894,1000_QL80_.jpg" alt="Зарядный блок">
+                            <div class="product-name">Зарядный блок</div>
+                            <div class="product-price">1 290 ₽</div>
+                            <button class="add-to-cart" onclick="addToCart('Зарядный блок', 1290)">В корзину</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-      </div>
+        <!-- Панель 2: Корзина -->
+        <div class="panel" id="cart">
+            <div class="panel-title">Корзина</div>
+            <div id="cartItems"></div>
+            <div id="cartTotal" style="margin-top: 15px; font-size: 1.2rem; color: var(--accent);">Итого: 0 ₽</div>
+            <button onclick="checkout()" style="margin-top: 10px; padding: 8px 16px; background: var(--primary); color: #fff; border: none; border-radius: 4px; cursor: pointer;">Оформить</button>
+        </div>
 
-      <ProductModal open={productOpen} product={activeProduct} onClose={() => setProductOpen(false)} onAdd={addToCart} onToggleWish={toggleWish} wished={!!wishlist.find(w => w.id === (activeProduct && activeProduct.id))} />
+        <!-- Панель 3: Профиль -->
+        <div class="panel" id="profile">
+            <div class="panel-title">Личный Кабинет</div>
+            <form class="profile-form">
+                <input type="text" id="profileName" placeholder="Имя">
+                <input type="email" id="profileEmail" placeholder="Email">
+                <input type="password" id="profilePassword" placeholder="Пароль">
+                <button type="button" onclick="updateProfile()">Сохранить</button>
+            </form>
+        </div>
 
-      <CartDrawer open={cartOpen} items={cart} onClose={() => setCartOpen(false)} onChangeQty={changeQty} onRemove={removeFromCart} onCheckout={checkout} coupon={null} applyCoupon={() => {}} onClear={clearCart} />
+        <!-- Панель 4: Рекомендации -->
+        <div class="panel" id="recommendations">
+            <div class="panel-title">Рекомендуем Для Вас</div>
+            <ul class="recommendations-list" id="recommendationsList">
+                <li>Galaxy Pro - Хит продаж!</li>
+                <li>MacBook Air M3 - Для работы и учебы.</li>
+                <li>Беспроводная зарядка - Удобно и быстро.</li>
+                <li>Умные часы - Следите за здоровьем.</li>
+                <li>VR-очки - Погружение в виртуальность.</li>
+                <li>Дрон - Для съёмок с воздуха.</li>
+                <li>Умный дом хаб - Управляйте домом.</li>
+                <li>Фитнес-браслет - Мониторинг активности.</li>
+            </ul>
+            <button onclick="refreshRecommendations()" style="margin-top: 10px; padding: 8px 16px; background: var(--secondary); color: #fff; border: none; border-radius: 4px; cursor: pointer;">Обновить</button>
+        </div>
 
-      <Modal open={authOpen} onClose={() => setAuthOpen(false)} title="Login">
-        <AuthForm onLogin={(u) => { setUser(u); setAuthOpen(false); push({ title: 'Welcome', description: `Hello ${u.name}` }); }} />
-      </Modal>
+        <!-- Панель 5: История заказов -->
+        <div class="panel" id="orders">
+            <div class="panel-title">История Заказов</div>
+            <div id="orderHistory">
+                <div class="order-history-item">
+                    <h4>Заказ #001 - 10.01.2026</h4>
+                    <ul class="order-items">
+                        <li>Galaxy Pro <span>45 990 ₽</span></li>
+                        <li>Беспроводная зарядка <span>1 990 ₽</span></li>
+                    </ul>
+                    <div>Итого: 47 980 ₽</div>
+                    <div>Статус: Доставлен</div>
+                </div>
+                <div class="order-history-item">
+                    <h4>Заказ #002 - 15.01.2026</h4>
+                    <ul class="order-items">
+                        <li>MacBook Air M3 <span>129 990 ₽</span></li>
+                        <li>Bluetooth наушники <span>3 990 ₽</span></li>
+                    </ul>
+                    <div>Итого: 133 980 ₽</div>
+                    <div>Статус: В обработке</div>
+                </div>
+                <div class="order-history-item">
+                    <h4>Заказ #003 - 20.01.2026</h4>
+                    <ul class="order-items">
+                        <li>Умные часы <span>14 990 ₽</span></li>
+                        <li>Чехол для смартфона <span>990 ₽</span></li>
+                    </ul>
+                    <div>Итого: 15 980 ₽</div>
+                    <div>Статус: Отправлен</div>
+                </div>
+            </div>
+        </div>
 
-      <Toasts toasts={toasts} />
+        <!-- Панель 6: Платежи -->
+        <div class="panel" id="payments">
+            <div class="panel-title">Способы Оплаты</div>
+            <div class="payment-options">
+                <div class="payment-option" onclick="selectPayment(this)">Банковская карта</div>
+                <div class="payment-option" onclick="selectPayment(this)">СБП</div>
+                <div class="payment-option" onclick="selectPayment(this)">Яндекс.Пэй</div>
+                <div class="payment-option" onclick="selectPayment(this)">Tinkoff Pay</div>
+                <div class="payment-option" onclick="selectPayment(this)">Рассрочка</div>
+                <div class="payment-option" onclick="selectPayment(this)">Кредит</div>
+            </div>
+            <button onclick="savePayment()" style="margin-top: 10px; padding: 8px 16px; background: var(--primary); color: #fff; border: none; border-radius: 4px; cursor: pointer;">Сохранить</button>
+        </div>
+
+        <!-- Панель 7: Отзывы -->
+        <div class="panel" id="reviews">
+            <div class="panel-title">Отзывы Клиентов</div>
+            <ul class="reviews-list">
+                <li>
+                    <div class="review-author">Иван П.</div>
+                    <div class="review-text">"Отличный магазин, быстрая доставка."</div>
+                </li>
+                <li>
+                    <div class="review-author">Мария С.</div>
+                    <div class="review-text">"Качественные товары по хорошим ценам."</div>
+                </li>
+                <li>
+                    <div class="review-author">Алексей К.</div>
+                    <div class="review-text">"Рекомендую, все супер!"</div>
+                </li>
+                <li>
+                    <div class="review-author">Ольга В.</div>
+                    <div class="review-text">"Удобный интерфейс сайта."</div>
+                </li>
+                <li>
+                    <div class="review-author">Дмитрий Р.</div>
+                    <div class="review-text">"Хороший выбор гаджетов."</div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Панель 8: Поддержка -->
+        <div class="panel" id="support">
+            <div class="panel-title">Служба Поддержки</div>
+            <div class="support-chat" id="chatMessages"></div>
+            <div class="chat-input">
+                <input type="text" id="chatInput" placeholder="Ваше сообщение...">
+                <button onclick="sendMessage()">Отправить</button>
+            </div>
+        </div>
+
+        <!-- Панель 9: Избранное -->
+        <div class="panel" id="wishlist">
+            <div class="panel-title">Избранное</div>
+            <div id="wishlistItems"></div>
+        </div>
+
+        <!-- Панель 10: Блог -->
+        <div class="panel" id="blog">
+            <div class="panel-title">Блог</div>
+            <div class="blog-post">
+                <h3>Топ-10 Смартфонов 2026</h3>
+                <p>Обзор лучших моделей этого года...</p>
+                <a href="#">Подробнее</a>
+            </div>
+            <div class="blog-post">
+                <h3>Как Выбрать Ноутбук</h3>
+                <p>Полезные советы для покупателей...</p>
+                <a href="#">Подробнее</a>
+            </div>
+            <div class="blog-post">
+                <h3>Новинки Аксессуаров</h3>
+                <p>Что нового в мире гаджетов...</p>
+                <a href="#">Подробнее</a>
+            </div>
+            <div class="blog-post">
+                <h3>Гаджеты для Дома</h3>
+                <p>Умный дом: как начать...</p>
+                <a href="#">Подробнее</a>
+            </div>
+            <div class="blog-post">
+                <h3>Аудиооборудование: Выбор</h3>
+                <p>Лучшие наушники и колонки...</p>
+                <a href="#">Подробнее</a>
+            </div>
+        </div>
+
+        <!-- Панель 11: FAQ -->
+        <div class="panel" id="faq">
+            <div class="panel-title">Часто Задаваемые Вопросы</div>
+            <div class="faq-item">
+                <div class="faq-question">Как оформить заказ?</div>
+                <div class="faq-answer">Добавьте товары в корзину и перейдите к оформлению.</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Сроки доставки?</div>
+                <div class="faq-answer">От 1 до 5 дней в зависимости от региона.</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Можно ли вернуть товар?</div>
+                <div class="faq-answer">Да, в течение 7 дней.</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Гарантия на товары?</div>
+                <div class="faq-answer">От 1 года на все гаджеты.</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Как оплатить?</div>
+                <div class="faq-answer">Картой, СБП, рассрочкой.</div>
+            </div>
+        </div>
+
+        <!-- Панель 12: Контакты -->
+        <div class="panel" id="contact">
+            <div class="panel-title">Контактная Форма</div>
+            <form class="contact-form">
+                <input type="text" placeholder="Имя">
+                <input type="email" placeholder="Email">
+                <textarea placeholder="Сообщение" rows="4"></textarea>
+                <button type="button" onclick="sendContact()">Отправить</button>
+            </form>
+        </div>
     </div>
-  );
-}
 
-// ---------------- Auth Form ----------------
-function AuthForm({ onLogin }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const submit = (e) => { e.preventDefault(); if (!email.includes('@') || !name) return; onLogin({ name, email }); };
-  return (
-    <form onSubmit={submit} className="space-y-3">
-      <Input placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
-      <Input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-      <div className="flex justify-end"><Button type="submit">Sign in</Button></div>
-    </form>
-  );
-}
+    <!-- Модальное окно для оформления -->
+    <div class="modal" id="checkoutModal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <h2>Оформление Заказа</h2>
+            <p>Ваш заказ успешно оформлен. Спасибо!</p>
+        </div>
+    </div>
 
+    <footer>
+        © 2026 WildGadgets. Все права защищены.
+    </footer>
+
+    <script>
+        // Функции табов
+        function openTab(button, tabId) {
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+
+            const buttons = document.querySelectorAll('.tab-button');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+        }
+
+        // Корзина
+        let cart = [];
+        function addToCart(name, price) {
+            cart.push({ name, price });
+            updateCart();
+            alert(`${name} добавлен в корзину`);
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            updateCart();
+        }
+
+        function updateCart() {
+            const cartItems = document.getElementById('cartItems');
+            cartItems.innerHTML = '';
+            let total = 0;
+            cart.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.classList.add('cart-item');
+                div.innerHTML = `
+                    <span>${item.name} - ${item.price.toLocaleString()} ₽</span>
+                    <button class="remove-item" onclick="removeFromCart(${index})">Удалить</button>
+                `;
+                cartItems.appendChild(div);
+                total += item.price;
+            });
+            document.getElementById('cartTotal').textContent = `Итого: ${total.toLocaleString()} ₽`;
+        }
+
+        function checkout() {
+            if (cart.length === 0) {
+                alert('Корзина пуста');
+                return;
+            }
+            document.getElementById('checkoutModal').style.display = 'flex';
+            cart = [];
+            updateCart();
+        }
+
+        function closeModal() {
+            document.getElementById('checkoutModal').style.display = 'none';
+        }
+
+        // Поиск
+        function searchProducts() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const products = document.querySelectorAll('.product-card');
+            products.forEach(product => {
+                const name = product.querySelector('.product-name').textContent.toLowerCase();
+                product.style.display = name.includes(query) ? 'block' : 'none';
+            });
+        }
+
+        // Профиль
+        function updateProfile() {
+            const name = document.getElementById('profileName').value;
+            const email = document.getElementById('profileEmail').value;
+            alert(`Данные обновлены: ${name}, ${email}`);
+        }
+
+        // Рекомендации
+        function refreshRecommendations() {
+            const list = document.getElementById('recommendationsList');
+            list.innerHTML = '';
+            const recs = ['Новинка 1', 'Новинка 2', 'Новинка 3', 'Новинка 4', 'Новинка 5'];
+            recs.forEach(rec => {
+                const li = document.createElement('li');
+                li.textContent = rec;
+                list.appendChild(li);
+            });
+        }
+
+        // Платежи
+        function selectPayment(option) {
+            const options = document.querySelectorAll('.payment-option');
+            options.forEach(opt => opt.classList.remove('selected'));
+            option.classList.add('selected');
+        }
+
+        function savePayment() {
+            alert('Способ оплаты сохранен');
+        }
+
+        // Чат поддержки
+        const chatResponses = [
+            'Здравствуйте! Чем помочь?',
+            'Ваш заказ в обработке.',
+            'Спасибо за сообщение.',
+            'Проверьте статус в профиле.',
+            'Мы работаем круглосуточно.'
+        ];
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value;
+            if (!message) return;
+
+            const chat = document.getElementById('chatMessages');
+            const userMsg = document.createElement('div');
+            userMsg.classList.add('chat-message', 'user');
+            userMsg.textContent = message;
+            chat.appendChild(userMsg);
+
+            setTimeout(() => {
+                const botMsg = document.createElement('div');
+                botMsg.classList.add('chat-message', 'bot');
+                botMsg.textContent = chatResponses[Math.floor(Math.random() * chatResponses.length)];
+                chat.appendChild(botMsg);
+                chat.scrollTop = chat.scrollHeight;
+            }, 800);
+
+            input.value = '';
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        // Избранное
+        let wishlist = [];
+        function addToWishlist(name, price) {
+            wishlist.push({ name, price });
+            updateWishlist();
+        }
+
+        function removeFromWishlist(index) {
+            wishlist.splice(index, 1);
+            updateWishlist();
+        }
+
+        function updateWishlist() {
+            const wishlistItems = document.getElementById('wishlistItems');
+            wishlistItems.innerHTML = '';
+            wishlist.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.classList.add('wishlist-item');
+                div.innerHTML = `
+                    <span>${item.name} - ${item.price.toLocaleString()} ₽</span>
+                    <button class="remove-wishlist" onclick="removeFromWishlist(${index})">Удалить</button>
+                `;
+                wishlistItems.appendChild(div);
+            });
+        }
+
+        // Контакты
+        function sendContact() {
+            alert('Сообщение отправлено');
+        }
+
+        // Пагинация (заглушка)
+        function paginate(page) {
+            alert(`Переход на страницу ${page}. (В реальности здесь будет загрузка новых товаров)`);
+            const buttons = document.querySelectorAll('.pagination button');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        // Добавляем кнопки "В избранное" к продуктам
+        document.querySelectorAll('.product-card').forEach(card => {
+            const name = card.querySelector('.product-name').textContent;
+            const price = parseInt(card.querySelector('.product-price').textContent.replace(/\s/g, ''));
+            const wishlistBtn = document.createElement('button');
+            wishlistBtn.textContent = 'В избранное';
+            wishlistBtn.style.marginLeft = '10px';
+            wishlistBtn.style.background = 'none';
+            wishlistBtn.style.border = '1px solid var(--border)';
+            wishlistBtn.style.borderRadius = '4px';
+            wishlistBtn.style.padding = '6px 12px';
+            wishlistBtn.style.cursor = 'pointer';
+            wishlistBtn.onclick = () => addToWishlist(name, price);
+            card.querySelector('.add-to-cart').after(wishlistBtn);
+        });
+    </script>
+</body>
+</html>
